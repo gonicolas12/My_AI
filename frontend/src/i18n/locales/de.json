@@ -747,6 +747,8 @@
   "code.tool.run_command": "Befehl: {target}",
   "code.tool.get_active_editor": "In VS Code geöffnete Datei",
   "code.tool.open_file": "Öffnet {target}",
+  "code.tool.search_memory": "Sucht „{target}“ im Gedächtnis",
+  "code.tool.remember_fact": "Gemerkt: {target}",
   "code.tool.input": "Argumente",
   "code.tool.output": "Ergebnis",
   "code.tool.empty": "(leer)",

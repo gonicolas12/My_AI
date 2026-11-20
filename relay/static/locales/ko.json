@@ -143,6 +143,8 @@
   "code.tool.run_command": "명령: {target}",
   "code.tool.get_active_editor": "VS Code에서 연 파일",
   "code.tool.open_file": "{target} 열기",
+  "code.tool.search_memory": "메모리에서 ‘{target}’ 검색",
+  "code.tool.remember_fact": "기억함: {target}",
   "code.tool.input": "인수",
   "code.tool.output": "결과",
   "code.tool.empty": "(비어 있음)",

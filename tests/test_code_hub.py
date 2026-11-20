@@ -24,6 +24,9 @@ from fastapi.testclient import TestClient
 from PIL import Image
 
 from core.agentic_executor import RemoteToolExecutor, build_system_prompt
+from core.code_memory import CodeMemory
+from core.i18n import tr
+from core.knowledge_base_manager import KnowledgeBaseManager
 from interfaces.desktop import files as local_files
 from interfaces.desktop.code import CodeService
 from interfaces.desktop.events import EventBus, validate_event
@@ -749,3 +752,166 @@ def test_phone_code_view_links_the_files_a_reply_cites(hub, loop, tmp_path):
     wait_until(lambda: len(phone.of("code_done")) == 2)
     failed = phone.of("code_done")[1]
     assert failed["status"] == "error" and "links" not in failed
+
+
+# ── Mémoire de My_AI dans la conversation Code ───────────────────────────────
+
+
+def _memory_hub(hub, tmp_path):
+    """Le hub avec la mémoire de l'appli : base de faits temporaire, documents absents."""
+    kb = KnowledgeBaseManager(db_path=str(tmp_path / "facts.db"))
+    memory = CodeMemory(kb)
+    hub.set_llm_resolver(lambda: {**LLM, "memory": memory})
+    return kb
+
+
+async def answer_briefly(run):
+    run["on_chunk"]("C'est noté.", 0)
+    return "C'est noté."
+
+
+def test_remember_in_the_code_conversation_saves_for_the_open_folder(hub, loop, tmp_path):
+    """« Retiens que… » tapé dans la conversation Code n'était enregistré nulle part."""
+    kb = _memory_hub(hub, tmp_path)
+    FakeExecutor.script = answer_briefly
+    _link, vscode = connect_vscode(hub, loop)
+    phone = subscribe_phone(hub)
+    seen = []
+    FakeExecutor.script = lambda run: (seen.append(run["user_message"]), answer_briefly(run))[1]
+
+    message_id = hub.send("Retiens que j'indente avec des tabulations", "desktop")
+    wait_until(lambda: phone.of("code_done"))
+
+    fact = kb.get_all_facts()[0]
+    assert (fact["value"], fact["source"], fact["scope"], fact["project"]) == (
+        "j'indente avec des tabulations", "code", "project", "C:\dev\My_AI")
+    # Une carte au début de la réponse, sur les trois surfaces (VS Code ne l'a pas exécutée)
+    card = phone.of("code_tool")[0]
+    assert (card["message_id"], card["name"], card["status"], card["host"]) == (
+        message_id, "remember_fact", "completed", True)
+    assert card["input"] == {"fact": "j'indente avec des tabulations", "scope": "project",
+                             "project": "My_AI"}
+    assert card["output"] == tr("code.memory.savedProject", project="My_AI")
+    assert vscode.of("code_tool")[0]["call_id"] == card["call_id"]
+    parts = hub.snapshot()["messages"][1]["parts"]
+    assert [p["kind"] for p in parts] == ["tool", "text"]
+    # Le modèle le sait : la note suit son message
+    assert seen[0].startswith("Retiens que j'indente avec des tabulations\n\n[Mémoire] ")
+    assert "pour le projet « My_AI »" in seen[0]
+
+
+async def search_the_memory(run):
+    call = {"call_id": "m1", "name": "search_memory", "input": {"query": "port"}}
+    run["on_tool_call_announced"](call)
+    result = await run["tool_executor"].call(call_id="m1", name="search_memory",
+                                             input_data=call["input"])
+    run["on_tool_result"]("m1", result)
+    run["on_chunk"](result["content"], 1)
+    return result["content"]
+
+
+def test_search_memory_runs_on_the_pc(hub, loop, tmp_path):
+    kb = _memory_hub(hub, tmp_path)
+    kb.add_fact("general", key="Le port de l'api est 8000", value="Le port de l'api est 8000",
+                scope="project", project="C:\dev\My_AI")
+    kb.add_fact("general", key="Le port du web est 5173", value="Le port du web est 5173",
+                scope="project", project="C:\dev\web")
+    FakeExecutor.script = search_the_memory
+    _link, vscode = connect_vscode(hub, loop)
+    phone = subscribe_phone(hub)
+
+    hub.send("Quel port j'ai mis en mémoire ?", "mobile")
+    wait_until(lambda: phone.of("code_done"))
+
+    # Jamais envoyé à l'extension, mais montré partout
+    assert not vscode.of("tool_use")
+    assert [t["status"] for t in phone.of("code_tool")] == ["requested", "running", "completed"]
+    assert [t["status"] for t in vscode.of("code_tool")] == ["requested", "running", "completed"]
+    output = phone.of("code_tool")[-1]["output"]
+    assert "8000" in output and "5173" not in output  # pas les faits d'un autre projet
+    assert phone.of("code_done")[0]["status"] == "done"
+
+
+def test_the_system_prompt_lists_the_code_facts_and_stays_put(hub, loop, tmp_path):
+    """Un « retiens que… » ne refait pas le prompt système (Ollama relirait toute la
+    conversation) ; un fait modifié dans la fenêtre Mémoire, si."""
+    kb = _memory_hub(hub, tmp_path)
+    tabs = kb.add_fact("general", key="J'indente avec des tabulations",
+                       value="J'indente avec des tabulations", scope="code")
+    kb.add_fact("general", key="Mon chat s'appelle Félix", value="Mon chat s'appelle Félix")
+    _link, vscode = connect_vscode(hub, loop)
+
+    def ask(text, count):
+        hub.send(text, "vscode")
+        wait_until(lambda: len(vscode.of("response")) == count)
+        return hub._llm_history[0]["content"]  # pylint: disable=protected-access
+
+    first = ask("Salut", 1)
+    assert "# Mémoire" in first and "- L'utilisateur indente avec des tabulations" in first
+    assert "Félix" not in first
+    assert "### search_memory" in first
+    assert ask("Retiens que j'écris mes commits en français", 2) == first
+    assert ask("Et maintenant ?", 3) == first
+    # Après un redémarrage aussi
+    store = tmp_path / "code_conversation.json"
+    wait_until(lambda: json.loads(store.read_text(encoding="utf-8")).get("memory"))
+    restarted = CodeHub(store=store)
+    assert restarted._memory_view == hub._memory_view  # pylint: disable=protected-access
+
+    kb.update_fact(tabs, "J'indente avec quatre espaces")
+    rebuilt = ask("Encore ?", 4)
+    assert rebuilt != first
+    assert "quatre espaces" in rebuilt and "indente avec des tabulations\n" not in rebuilt
+    assert "- L'utilisateur écrit ses commits en français" in rebuilt
+
+
+def test_facts_remembered_long_ago_come_back_when_the_start_goes(hub, loop, tmp_path):
+    """Au-delà du budget, les premiers échanges partent, notes [Mémoire] comprises (Ollama
+    relit alors tout de toute façon) : les faits retenus rejoignent le prompt système."""
+    kb = KnowledgeBaseManager(db_path=str(tmp_path / "facts.db"))
+    memory = CodeMemory(kb)
+    hub.set_llm_resolver(lambda: {**LLM, "num_ctx": 8192, "memory": memory})
+
+    async def long_reply(run):
+        run["history"].append({"role": "user", "content": run["user_message"]})
+        run["history"].append({"role": "assistant", "content": "x" * 9000})
+        run["on_chunk"]("ok", 0)
+        return "ok"
+
+    FakeExecutor.script = long_reply
+    _link, vscode = connect_vscode(hub, loop)
+
+    def ask(text, count):
+        hub.send(text, "vscode")
+        wait_until(lambda: len(vscode.of("response")) == count)
+        return hub._llm_history[0]["content"]  # pylint: disable=protected-access
+
+    first = ask("Salut", 1)
+    assert ask("Retiens que j'indente avec des tabulations", 2) == first
+    assert "tabulations" not in first
+    rebuilt = ask("Et ensuite ?", 3)
+    assert "- L'utilisateur indente avec des tabulations" in rebuilt
+    assert hub._llm_history[1]["content"].startswith("Retiens que")  # pylint: disable=protected-access
+
+
+def test_without_memory_the_prompt_is_the_same_as_before(hub, loop):
+    _link, vscode = connect_vscode(hub, loop)
+    hub.send("Salut", "vscode")
+    wait_until(lambda: vscode.of("response"))
+    prompt = hub._llm_history[0]["content"]  # pylint: disable=protected-access
+    assert "# Mémoire" not in prompt and "search_memory" not in prompt
+    assert prompt == build_system_prompt(
+        "Workspace folders:\n- My_AI (C:\dev\My_AI)\nPlatform: win32", language="fr")
+    assert hub._memory_view is None  # pylint: disable=protected-access
+
+
+def test_vscode_sees_only_the_tools_run_on_the_pc():
+    tool = {"type": "tool", "message_id": "code_1", "call_id": "c1", "name": "read_file",
+            "input": {}, "status": "running"}
+    assert vscode_view(tool, "link") is None
+    shown = vscode_view({**tool, "name": "search_memory", "host": True}, "link")
+    assert shown["type"] == "code_tool" and shown["name"] == "search_memory"
+    # La fenêtre desktop reçoit le même champ (événement « code.tool »)
+    payload = {key: value for key, value in tool.items() if key != "type"} | {"host": True}
+    validate_event({"type": "code.tool", "conversation_id": None, "message_id": "code_1",
+                    "seq": 1, "payload": payload})

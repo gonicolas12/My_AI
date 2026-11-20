@@ -25,6 +25,7 @@ from __future__ import annotations
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 from core.i18n import tr
+from core.knowledge_base_manager import SCOPE_CODE, SCOPE_PROJECT, fact_scope, project_name
 
 try:
     from utils.logger import setup_logger
@@ -786,6 +787,13 @@ class MemoryStore:
                 conf_pct = 100
             parts = [tr("memory.provenance.source", source=src),
                      tr("memory.provenance.confidence", percent=conf_pct)]
+            # Retenu dans la conversation Code : en tête, que la ligne coupée le garde
+            scope, project = fact_scope(item)
+            if scope == SCOPE_CODE:
+                parts.insert(0, tr("memory.provenance.scopeCode"))
+            elif scope == SCOPE_PROJECT:
+                parts.insert(0, tr("memory.provenance.scopeProject",
+                                   project=project_name(project)))
             updated = str(item.get("updated_at", ""))
             if updated:
                 parts.append(tr("memory.provenance.updated", date=updated[:19].replace("T", " ")))
@@ -830,4 +838,6 @@ class MemoryStore:
             "confidence": fact.get("confidence", 1.0),
             "created_at": fact.get("created_at", ""),
             "updated_at": fact.get("updated_at", ""),
+            "scope": fact_scope(fact)[0],
+            "project": fact_scope(fact)[1],
         }

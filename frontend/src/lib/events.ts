@@ -244,6 +244,8 @@ export interface CodeToolCall {
   output?: string;
   /** Approbation demandée : réponses possibles d'ici ; vide = répondue dans VS Code */
   options?: ApprovalDecision[];
+  /** Exécuté sur le PC (mémoire de My_AI : search_memory, « retiens que… ») */
+  host?: boolean;
 }
 
 export type CodePart =

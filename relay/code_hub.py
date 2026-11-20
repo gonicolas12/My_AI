@@ -6,11 +6,15 @@ téléphone (Relay) montrent la même conversation : un message envoyé de l'une
 la réponse en streaming, les appels d'outils et leurs approbations, l'arrêt et
 l'effacement paraissent sur les trois. Chaque message lance la boucle
 agentique (core/agentic_executor.py) sur la boucle asyncio du Relay ; ses
-outils s'exécutent toujours dans l'extension VS Code connectée, qui demande
-l'accord de l'utilisateur avant d'écrire un fichier ou de lancer une commande.
+outils s'exécutent dans l'extension VS Code connectée, qui demande l'accord
+de l'utilisateur avant d'écrire un fichier ou de lancer une commande. Seuls
+ceux de la mémoire de My_AI (MEMORY_TOOLS) s'exécutent sur le PC.
 
 Le chat « classique » (téléphone et fenêtre desktop, RelayBridge) ne voit rien
-de cette conversation, et elle ne voit rien de lui.
+de cette conversation, et elle ne voit rien de lui. Elle partage avec lui la
+mémoire de My_AI, cloisonnée (core/code_memory.py) : les faits retenus pour le
+code dans son prompt système, « retiens que… » enregistré pour le dossier
+ouvert, le reste de la mémoire à la demande (search_memory).
 
 Un seul hub par processus (get_code_hub) : il survit aux redémarrages du
 Relay, et la conversation (affichage et historique du modèle) est gardée dans
@@ -43,8 +47,15 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
 from core import i18n
-from core.agentic_executor import AgenticExecutor, RemoteToolExecutor, build_system_prompt
+from core.agentic_executor import (
+    AGENT_TOOLS,
+    MEMORY_TOOLS,
+    AgenticExecutor,
+    RemoteToolExecutor,
+    build_system_prompt,
+)
 from core.i18n import tr
+from core.knowledge_base_manager import SCOPE_PROJECT, fact_scope, project_name
 from relay.code_links import conversation_files, reply_links, workspace_roots
 from utils.logger import setup_logger
 
@@ -79,6 +90,11 @@ _CHARS_PER_TOKEN = 3
 
 _IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp", ".tiff", ".tif"}
 _WORKSPACE_LINE = re.compile(r"^- (.+?) \(.*\)$", re.MULTILINE)
+
+# Outils exécutés sur le PC (mémoire de My_AI), quand la mémoire est disponible
+HOST_TOOLS = tuple(tool["name"] for tool in MEMORY_TOOLS)
+# Passages d'un appel de search_memory
+_MAX_MEMORY_RESULTS = 10
 
 
 class CodeError(Exception):
@@ -119,6 +135,8 @@ class _Run:
         self.stop_reason: Optional[str] = None
         # Appels d'outils dont l'approbation est demandée à l'utilisateur
         self.approvals: Dict[str, List[str]] = {}
+        # Outils de cette réponse exécutés sur le PC (mémoire disponible)
+        self.host_tools: set = set()
 
 
 def _now() -> str:
@@ -167,7 +185,11 @@ class CodeHub:
         self._links: List[VSCodeLink] = []
         self._active: Optional[_Run] = None
         self._llm_resolver: Optional[Callable[[], Optional[Dict[str, Any]]]] = None
-        self._messages, self._llm_history = self._load()
+        # Section « Mémoire » du prompt système en place (_memory_system) : le
+        # prompt sans elle, les faits qu'elle montre, ceux que la conversation a
+        # retenus depuis
+        self._memory_view: Optional[Dict[str, Any]] = None
+        self._messages, self._llm_history, self._memory_view = self._load()
 
     # ── Abonnés ─────────────────────────────────────────────────────────────
 
@@ -386,6 +408,7 @@ class CodeHub:
                 run.discarded = True
             self._messages = []
             self._llm_history = []
+            self._memory_view = None
             self._emit("cleared")
             if run is None:
                 self._emit("state", self._state_locked())
@@ -455,6 +478,46 @@ class CodeHub:
             part = {"kind": "tool", "call_id": str(call.get("call_id", "")),
                     "name": str(call.get("name", "")), "input": _display_input(call.get("input")),
                     "status": "requested"}
+            if part["name"] in run.host_tools:
+                # Exécuté sur le PC : l'extension ne le voit pas passer (vscode_view)
+                part["host"] = True
+            message["parts"].append(part)
+            self._emit("tool", {"message_id": run.message_id, **self._tool_view(part)})
+
+    def _tool_running(self, run: _Run, call_id: str) -> None:
+        """Outil de la mémoire en cours d'exécution, sur le PC."""
+        with self._lock:
+            if self._current_assistant(run) is None:
+                return
+            part = self._tool_part(run.message_id, call_id)
+            if part is None or part["status"] != "requested":
+                return
+            part["status"] = "running"
+            self._emit("tool", {"message_id": run.message_id, **self._tool_view(part)})
+
+    def _remembered(self, run: _Run, remembered: Any) -> None:
+        """« Retiens que… » enregistré : une carte au début de la réponse, sur les trois
+        surfaces (l'information, pour quoi elle vaut, où la retrouver)."""
+        project = project_name(remembered.project) if remembered.scope == SCOPE_PROJECT else ""
+        if not remembered.created:
+            output = tr("code.memory.known")
+        elif project:
+            output = tr("code.memory.savedProject", project=project)
+        else:
+            output = tr("code.memory.savedAll")
+        shown = {"fact": remembered.fact, "scope": remembered.scope}
+        if project:
+            shown["project"] = project
+        with self._lock:
+            if self._memory_view is not None:
+                # Le modèle le lit dans l'historique : le prompt système n'a pas à changer
+                self._memory_view.setdefault("added", []).append(remembered.fact_id)
+            message = self._current_assistant(run)
+            if message is None:
+                return
+            part = {"kind": "tool", "call_id": f"memory_{uuid.uuid4().hex[:12]}",
+                    "name": "remember_fact", "input": _display_input(shown),
+                    "status": "completed", "output": output, "host": True}
             message["parts"].append(part)
             self._emit("tool", {"message_id": run.message_id, **self._tool_view(part)})
 
@@ -479,12 +542,24 @@ class CodeHub:
     # ── Réponse (boucle du Relay) ───────────────────────────────────────────
 
     async def _run(self, run: _Run, text: str, files: List[Tuple[str, str]]) -> None:
-        """Boucle agentique d'un message, outils exécutés par l'extension VS Code."""
+        """Boucle agentique d'un message, outils exécutés par l'extension VS Code (ceux
+        de la mémoire, sur le PC)."""
         config = self._resolve_llm()
         if config is None:
             self._finish(run, tr("relay.engineNotReady"), "error")
             return
         loop = asyncio.get_running_loop()
+        # Mémoire de My_AI (core/code_memory.py), si l'appli en a une
+        memory = config.get("memory")
+        roots = workspace_roots(run.link.workspace_info)
+        note, facts = "", None
+        if memory is not None:
+            run.host_tools = set(HOST_TOOLS)
+            note = await self._remember(run, memory, text, roots)
+            try:
+                facts = await loop.run_in_executor(None, memory.facts, roots)
+            except Exception as exc:  # pylint: disable=broad-except
+                logger.warning("Conversation Code : faits de la mémoire illisibles (%s)", exc)
         prompt = text
         if files:
             room = int((int(config.get("num_ctx", 32768)) - _REPLY_TOKENS) * _CHARS_PER_TOKEN
@@ -495,7 +570,9 @@ class CodeHub:
             )
             prompt = "\n\n".join(part for part in (text or "Regarde les fichiers joints.", blocks)
                                  if part)
-        history = self._prepare_history(run.link, config)
+        if note:
+            prompt = f"{prompt}\n\n{note}" if prompt else note
+        history = self._prepare_history(run.link, config, memory, roots, facts)
         factory = self._executor_factory or AgenticExecutor
         executor = factory(
             ollama_chat_url=config["chat_url"], model=config["model"], num_ctx=config["num_ctx"],
@@ -504,14 +581,14 @@ class CodeHub:
         async def send_tool_use(payload: Dict[str, Any]) -> None:
             run.link.send(payload)
 
-        tools = RemoteToolExecutor(
+        tools = _HubTools(self, run, RemoteToolExecutor(
             send_fn=send_tool_use,
             pending_calls=run.link.pending,
             message_id=run.message_id,
             loop=loop,
             origin=run.origin,
             keep_waiting=lambda call_id: call_id in run.approvals,
-        )
+        ), memory, roots)
         try:
             final_text = await executor.run(
                 user_message=prompt,
@@ -540,27 +617,94 @@ class CodeHub:
             logger.warning("Modèle de la conversation Code introuvable : %s", exc)
             return None
 
-    def _prepare_history(self, link: VSCodeLink, config: Dict[str, Any]) -> List[Dict[str, Any]]:
+    async def _remember(self, run: _Run, memory: Any, text: str, roots: List[str]) -> str:
+        """« Retiens que… » du message : enregistré, montré (carte), et la note qui le
+        dit au modèle ("" si le message ne le demande pas)."""
+        loop = asyncio.get_running_loop()
+        try:
+            remembered = await loop.run_in_executor(None, memory.remember, text, roots)
+        except Exception as exc:  # pylint: disable=broad-except
+            logger.warning("Conversation Code : rien de mémorisé (%s)", exc)
+            return ""
+        if remembered is None:
+            return ""
+        logger.info("Conversation Code : 🧠 mémorisé pour %s : %s",
+                    remembered.where(), remembered.fact[:80])
+        self._remembered(run, remembered)
+        return remembered.prompt_note()
+
+    def _prepare_history(
+        self, link: VSCodeLink, config: Dict[str, Any], memory: Any = None,
+        roots: Sequence[str] = (), facts: Optional[List[Dict[str, Any]]] = None,
+    ) -> List[Dict[str, Any]]:
         """Historique du modèle : prompt système à jour, puis borné à la fenêtre de contexte.
 
         Le prompt système ne change que si les dossiers ouverts, la langue ou
-        le jour changent : un début de prompt modifié fait relire tout
-        l'historique à Ollama. Au-delà du budget, les plus anciens échanges partent.
+        le jour changent, ou les faits retenus pour le code (_memory_system) :
+        un début de prompt modifié fait relire tout l'historique à Ollama. Au-delà
+        du budget, les plus anciens échanges partent.
         """
-        system = build_system_prompt(link.workspace_info, language=i18n.current_language())
+        language = i18n.current_language()
+        tools = AGENT_TOOLS + MEMORY_TOOLS if memory is not None else AGENT_TOOLS
+        base = build_system_prompt(link.workspace_info, tools=tools, language=language)
+
+        def build(block: str) -> str:
+            return build_system_prompt(link.workspace_info, tools=tools, language=language,
+                                       memory=block)
+
         with self._lock:
             history = self._llm_history
-            if history and history[0].get("role") == "system":
-                if history[0].get("content") != system:
-                    history[0] = {"role": "system", "content": system}
+            current = (history[0].get("content")
+                       if history and history[0].get("role") == "system" else None)
+            if memory is None:
+                self._memory_view = None
+                system = base
             else:
+                system = self._memory_system(current, base, memory, roots, facts, build)
+            if current is None:
                 history.insert(0, {"role": "system", "content": system})
+            elif current != system:
+                history[0] = {"role": "system", "content": system}
             budget = max(20_000, (int(config.get("num_ctx", 32768)) - _REPLY_TOKENS)
                          * _CHARS_PER_TOKEN)
             total = sum(len(str(item.get("content") or "")) for item in history)
+            trimmed = False
             while total > budget and len(history) > 2:
                 total -= len(str(history.pop(1).get("content") or ""))
+                trimmed = True
+            view = self._memory_view
+            if trimmed and view and view.get("added") and facts is not None:
+                # Le début de la conversation part (Ollama relit tout de toute façon) :
+                # les faits qu'elle a retenus, dont les notes [Mémoire] ont pu partir
+                # avec lui, rejoignent le prompt système
+                self._memory_view = None
+                history[0] = {"role": "system", "content": self._memory_system(
+                    None, base, memory, roots, facts, build)}
             return history
+
+    def _memory_system(
+        self, current: Optional[str], base: str, memory: Any, roots: Sequence[str],
+        facts: Optional[List[Dict[str, Any]]], build: Callable[[str], str],
+    ) -> str:
+        """Prompt système avec sa section « Mémoire » (sous le verrou).
+
+        Celui en place reste tant que le reste du prompt (base) ne change pas et
+        que les faits qu'il montre sont ceux de la mémoire, à ceux près que la
+        conversation a retenus depuis : le modèle les a lus dans l'historique (note
+        [Mémoire] de leur message), et refaire le prompt ferait tout relire à
+        Ollama. Un fait modifié ou supprimé dans la fenêtre Mémoire, ou retenu
+        ailleurs, le refait. Faits illisibles (facts None) : celui en place reste.
+        """
+        view = self._memory_view
+        if current is not None and view is not None and view.get("base") == base:
+            if facts is None:
+                return current
+            added = set(view.get("added") or [])
+            if _without(_signature(facts), added) == _without(view.get("facts") or [], added):
+                return current
+        facts = facts or []
+        self._memory_view = {"base": base, "facts": _signature(facts), "added": []}
+        return build(memory.prompt_block(roots, facts))
 
     def _chunk(self, run: _Run, text: str, segment: int) -> None:
         """Texte d'une passe du modèle (fil du streaming) : en entier, à sa place."""
@@ -660,20 +804,25 @@ class CodeHub:
 
     # ── Enregistrement ──────────────────────────────────────────────────────
 
-    def _load(self) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
-        """Conversation du lancement précédent ; une réponse restée en cours est arrêtée."""
+    def _load(self) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]],
+                             Optional[Dict[str, Any]]]:
+        """Conversation du lancement précédent ; une réponse restée en cours est arrêtée.
+
+        Returns:
+            (transcription, historique du modèle, section « Mémoire » de son prompt)
+        """
         if self._store is None:
-            return [], []
+            return [], [], None
         try:
             with open(self._store, "r", encoding="utf-8") as fh:
                 data = json.load(fh)
         except FileNotFoundError:
-            return [], []
+            return [], [], None
         except (OSError, ValueError) as exc:
             logger.warning("Conversation Code illisible (%s) : %s", self._store, exc)
-            return [], []
+            return [], [], None
         if not isinstance(data, dict):
-            return [], []
+            return [], [], None
         messages = []
         for item in data.get("messages") or []:
             if (not isinstance(item, dict) or item.get("role") not in ("user", "assistant")
@@ -692,7 +841,11 @@ class CodeHub:
         llm = [item for item in data.get("llm") or []
                if isinstance(item, dict) and isinstance(item.get("role"), str)
                and isinstance(item.get("content"), str)]
-        return messages[-MAX_MESSAGES:], llm
+        view = data.get("memory")
+        if not (isinstance(view, dict) and isinstance(view.get("base"), str)
+                and isinstance(view.get("facts"), list)):
+            view = None
+        return messages[-MAX_MESSAGES:], llm, view
 
     def _save(self) -> None:
         """Écrit la conversation (écriture atomique) ; un échec est journalisé, jamais levé."""
@@ -700,7 +853,8 @@ class CodeHub:
             return
         with self._lock:
             data = {"version": 1, "messages": copy.deepcopy(self._messages),
-                    "llm": list(self._llm_history)}
+                    "llm": list(self._llm_history),
+                    "memory": copy.deepcopy(self._memory_view)}
         with self._save_lock:
             try:
                 self._store.parent.mkdir(parents=True, exist_ok=True)
@@ -712,6 +866,54 @@ class CodeHub:
                 os.replace(tmp, self._store)
             except (OSError, ValueError, TypeError) as exc:
                 logger.warning("Conversation Code non enregistrée : %s", exc)
+
+
+class _HubTools:
+    """Outils d'une réponse : ceux de la mémoire sur le PC (HOST_TOOLS), les autres
+    dans l'extension VS Code (RemoteToolExecutor)."""
+
+    def __init__(self, hub: CodeHub, run: _Run, remote: RemoteToolExecutor,
+                 memory: Any, roots: Sequence[str]):
+        self._hub = hub
+        self._run = run
+        self._remote = remote
+        self._memory = memory
+        self._roots = list(roots)
+
+    async def call(self, call_id: str, name: str, input_data: Dict[str, Any],
+                   timeout: Optional[float] = None) -> Dict[str, Any]:
+        if self._memory is None or name not in HOST_TOOLS:
+            return await self._remote.call(call_id=call_id, name=name, input_data=input_data,
+                                           timeout=timeout)
+        self._hub._tool_running(self._run, call_id)  # pylint: disable=protected-access
+        data = input_data if isinstance(input_data, dict) else {}
+        query = str(data.get("query") or "").strip()
+        if not query:
+            return {"content": "Argument « query » manquant : dis ce que tu cherches.",
+                    "is_error": True}
+        try:
+            n_results = min(_MAX_MEMORY_RESULTS, max(1, int(data.get("n_results") or 5)))
+        except (TypeError, ValueError):
+            n_results = 5
+        document = str(data.get("document") or "").strip()
+        loop = asyncio.get_running_loop()
+        try:
+            content = await loop.run_in_executor(
+                None, self._memory.search, query, n_results, document, self._roots)
+        except Exception as exc:  # pylint: disable=broad-except
+            logger.warning("Conversation Code : search_memory en échec (%s)", exc)
+            return {"content": f"Erreur mémoire : {exc}", "is_error": True}
+        return {"content": content, "is_error": False}
+
+
+def _signature(facts: List[Dict[str, Any]]) -> List[List[Any]]:
+    """Ce qui, des faits, change la section « Mémoire » : leur texte et leur portée."""
+    return [[fact.get("id"), *fact_scope(fact), str(fact.get("key") or ""),
+             str(fact.get("value") or "")] for fact in facts]
+
+
+def _without(signature: List[List[Any]], ids: set) -> List[List[Any]]:
+    return [entry for entry in signature if entry and entry[0] not in ids]
 
 
 def _attachment_blocks(
@@ -780,10 +982,14 @@ def vscode_view(event: Dict[str, Any], link_id: str) -> Optional[Dict[str, Any]]
     L'extension garde son protocole : ack de ses propres messages (avec leur
     texte, pour ceux qu'elle n'a pas affichés : sélection, fichier envoyés
     par commande), chunk et response de la réponse. Les appels d'outils, elle
-    les exécute : ses propres cartes les montrent.
+    les exécute : ses propres cartes les montrent. Seuls ceux exécutés sur le
+    PC (mémoire de My_AI : search_memory, « retiens que… ») lui arrivent, en
+    code_tool.
     """
     kind = event.get("type")
     fields = {key: value for key, value in event.items() if key not in ("type", "client")}
+    if kind == "tool":
+        return {"type": "code_tool", **fields} if event.get("host") else None
     if kind == "snapshot":
         return {"type": "code_snapshot", **fields}
     if kind == "state":

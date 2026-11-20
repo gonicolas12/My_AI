@@ -359,6 +359,12 @@ def test_remember_refuses_an_empty_value(kb):
         ("Retiens que mon chat s'appelle Félix", "mon chat s'appelle Félix"),
         ("Retiens que mon chat s'appelle Félix. Quel temps fait-il ?", "mon chat s'appelle Félix"),
         ("Retiens que je débute en Python. Explique-moi les closures.", "je débute en Python"),
+        # Les verbes du code ouvrent aussi une autre demande (la tâche entière était retenue)
+        ("Retiens que j'utilise des f-strings. Ensuite, ajoute une fonction bonjour(nom).",
+         "j'utilise des f-strings"),
+        ("Retiens que les tests sont dans tests/. Lance-les avant de commiter.",
+         "les tests sont dans tests/"),
+        ("Remember that I use tabs. Then add a docstring to main().", "I use tabs"),
         # Un bloc « ceci : » garde ses consignes : il décrit souvent une procédure
         ("Retiens ceci : lance build.bat. Vérifie ensuite les logs.",
          "lance build.bat. Vérifie ensuite les logs"),

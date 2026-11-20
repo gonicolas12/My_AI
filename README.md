@@ -300,7 +300,7 @@ relay:
 
 | Feature | Details |
 |---|---|
-| 🤖 **Agentic mode** | 9 tools exposed to the LLM (`read_file`, `write_file`, `edit_file`, `list_dir`, `glob`, `grep`, `run_command`, `get_active_editor`, `open_file`) with a multi-step reasoning loop |
+| 🤖 **Agentic mode** | 10 tools exposed to the LLM (`read_file`, `write_file`, `edit_file`, `list_dir`, `glob`, `grep`, `run_command`, `get_active_editor`, `open_file`, and `search_memory` run on the PC) with a multi-step reasoning loop; "remember that…" saves a fact for the open project |
 | 📎 **`@` menu** | Typing `@` attaches a file to the message, or a **folder** as a persistent **@codebase** context (indexed on the host, one context per project) |
 | ⚡ **Slash commands** | `/` autocompletion of the My_AI prompts, expanded into a detailed prompt when sent (the bubble keeps the short command) |
 | ⏹️ **STOP button** | Stops the whole turn in one click: the LLM **and** the agentic tool loop (pending calls included). **Clear** during a generation stops it too |

@@ -699,6 +699,26 @@
     scrollToBottomStream();
   }
 
+  // Tool call run on the PC (My_AI's memory: search_memory, a « retiens que… »
+  // saved), whichever surface the message came from
+  function applyHostTool(data) {
+    const mid = data.message_id || '';
+    if (!mid || !data.call_id || discardingReply || closedMessageIds.has(mid)) return;
+    const reply = replies.get(mid) || startReply(mid, data.timestamp);
+    if (reply.status !== 'streaming') return;
+    let part = reply.parts.find((p) => p.kind === 'tool' && p.call_id === data.call_id);
+    if (!part) {
+      part = { kind: 'tool', call_id: data.call_id };
+      reply.parts.push(part);
+    }
+    part.name = data.name || part.name || 'tool';
+    part.input = data.input || part.input || {};
+    part.status = data.status || 'requested';
+    if (typeof data.output === 'string') part.output = data.output;
+    showReply(reply);
+    scrollToBottomStream();
+  }
+
   // End of a reply: done, stopped or error (hosts from before: done)
   function applyResponse(data) {
     const mid = data.message_id || '';
@@ -919,6 +939,7 @@
       case 'code_state': applyCodeState(data); break;
       case 'code_user': applyRemoteUser(data); break;
       case 'code_cleared': resetConversation(); break;
+      case 'code_tool': applyHostTool(data); break;
       case 'response': applyResponse(data); break;
       case 'chunk': applyChunk(data); break;
       case 'ack': applyAck(data); break;

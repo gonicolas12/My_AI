@@ -163,9 +163,16 @@ au modèle jusqu'à ce qu'il produise une réponse finale.
 | `run_command` | Exécuter une commande shell dans le workspace. ⚠ |
 | `get_active_editor` | Lire le fichier actuellement ouvert et la sélection utilisateur. |
 | `open_file` | Ouvrir un fichier du workspace dans l'éditeur (et révéler une ligne optionnelle). |
+| `search_memory` | Chercher dans la mémoire de My_AI (faits retenus, documents du panneau Mémoire). Exécuté sur le PC, pas par l'extension. |
 
 ⚠ = demande l'approbation explicite de l'utilisateur (modal, ou boutons
 dans la carte de l'outil pour un message tapé sur le PC ou le téléphone).
+
+**Mémoire** : « retiens que… », tapé dans la vue, est enregistré par My_AI
+pour le dossier ouvert (« retiens pour tous mes projets que… » : pour
+tous), et une carte « Retenu » le montre. Ce qui est retenu pour le code
+revient dans chaque conversation Code de ce dossier ; le reste de la
+mémoire, à la demande (`search_memory`). Voir docs/MEMORY.md du dépôt.
 
 ### Sandbox & approbations
 

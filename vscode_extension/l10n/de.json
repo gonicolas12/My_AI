@@ -58,6 +58,8 @@
   "Command: {target}": "Befehl: {target}",
   "File open in VS Code": "In VS Code geöffnete Datei",
   "Opening {target}": "Öffnet {target}",
+  "Searching memory for “{target}”": "Sucht „{target}“ im Gedächtnis",
+  "Remembered: {target}": "Gemerkt: {target}",
   "Input": "Argumente",
   "Output": "Ergebnis",
   "(empty)": "(leer)",

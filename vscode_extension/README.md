@@ -149,9 +149,16 @@ answer.
 | `run_command` | Run a shell command in the workspace. ⚠ |
 | `get_active_editor` | Read the currently open file and the user's selection. |
 | `open_file` | Open a workspace file in the editor (and reveal an optional line). |
+| `search_memory` | Search My_AI's memory (remembered facts, documents of the Memory panel). Runs on the PC, not in the extension. |
 
 ⚠ = requires explicit user approval (modal dialog, or buttons in the tool
 card for a message typed on the PC or the phone).
+
+**Memory**: "remember that…", typed in the view, is saved by My_AI for the
+open folder ("remember for all my projects that…": for all of them), and a
+"Remembered" card shows it. What is remembered for code comes back in every
+Code conversation in that folder; the rest of the memory, on demand
+(`search_memory`). See docs/MEMORY.md in the repository.
 
 ### Sandbox & approvals
 

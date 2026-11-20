@@ -149,6 +149,38 @@ describe('réponse de la page Code', () => {
     expect(state.items.map((item) => item.kind)).toEqual(['html']);
   });
 
+  it('montre les outils de la mémoire de My_AI, exécutés sur le PC', () => {
+    const memory: CodeAssistantMessage = {
+      ...REPLY,
+      paths: undefined,
+      parts: [
+        {
+          kind: 'tool',
+          call_id: 'm1',
+          name: 'remember_fact',
+          input: { fact: 'j’indente avec des tabulations', scope: 'project', project: 'api' },
+          status: 'completed',
+          output: 'Retenu pour le projet api.',
+          host: true,
+        },
+        {
+          kind: 'tool',
+          call_id: 'm2',
+          name: 'search_memory',
+          input: { query: 'calendrier du projet' },
+          status: 'completed',
+          output: 'Documents indexés…',
+          host: true,
+        },
+      ],
+    };
+    renderUi(<CodeReply message={memory} isLast />);
+    expect(screen.getByText('Retenu : j’indente avec des tabulations')).toBeInTheDocument();
+    expect(
+      screen.getByText('Recherche de « calendrier du projet » dans la mémoire'),
+    ).toBeInTheDocument();
+  });
+
   it('en cours : ni liens ni bouton « Aperçu »', () => {
     renderUi(<CodeReply message={{ ...REPLY, status: 'streaming', paths: undefined }} isLast />);
     expect(screen.queryByRole('link', { name: 'src/app.ts' })).toBeNull();

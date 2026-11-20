@@ -58,6 +58,8 @@
   "Command: {target}": "명령: {target}",
   "File open in VS Code": "VS Code에서 연 파일",
   "Opening {target}": "{target} 열기",
+  "Searching memory for “{target}”": "메모리에서 ‘{target}’ 검색",
+  "Remembered: {target}": "기억함: {target}",
   "Input": "인수",
   "Output": "결과",
   "(empty)": "(비어 있음)",

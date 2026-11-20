@@ -58,6 +58,8 @@
   "Command: {target}": "コマンド: {target}",
   "File open in VS Code": "VS Code で開いているファイル",
   "Opening {target}": "{target} を開く",
+  "Searching memory for “{target}”": "記憶で「{target}」を検索",
+  "Remembered: {target}": "記憶しました: {target}",
   "Input": "引数",
   "Output": "結果",
   "(empty)": "(空)",

@@ -725,6 +725,8 @@
   "code.tool.run_command": "コマンド: {target}",
   "code.tool.get_active_editor": "VS Code で開いているファイル",
   "code.tool.open_file": "{target} を開く",
+  "code.tool.search_memory": "記憶で「{target}」を検索",
+  "code.tool.remember_fact": "記憶しました: {target}",
   "code.tool.input": "引数",
   "code.tool.output": "結果",
   "code.tool.empty": "(空)",

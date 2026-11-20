@@ -1,10 +1,13 @@
 /*
  * Appels d'outils de la page Code : ceux que l'extension VS Code exécute dans
- * son workspace (AGENT_TOOLS de core/agentic_executor.py), avec leur icône et
- * leur libellé (« Lecture de src/app.ts », « Commande npm test »).
+ * son workspace (AGENT_TOOLS de core/agentic_executor.py), et ceux de la mémoire
+ * de My_AI, exécutés sur le PC (MEMORY_TOOLS, et « retiens que… » : la carte
+ * remember_fact), avec leur icône et leur libellé (« Lecture de src/app.ts »,
+ * « Commande npm test », « Retenu : … »).
  */
 
 import {
+  Brain,
   ExternalLink,
   FileCode2,
   FilePen,
@@ -31,6 +34,8 @@ const TOOLS: Record<string, { icon: LucideIcon; label: MessageKey }> = {
   run_command: { icon: SquareTerminal, label: 'code.tool.run_command' },
   get_active_editor: { icon: FileCode2, label: 'code.tool.get_active_editor' },
   open_file: { icon: ExternalLink, label: 'code.tool.open_file' },
+  search_memory: { icon: Brain, label: 'code.tool.search_memory' },
+  remember_fact: { icon: Brain, label: 'code.tool.remember_fact' },
 };
 
 /** Longueur d'une commande ou d'un motif dans le libellé */
@@ -40,7 +45,7 @@ export function codeToolIcon(name: string): LucideIcon {
   return TOOLS[name]?.icon ?? Wrench;
 }
 
-/** Ce que vise l'appel, sur une ligne : chemin, motif ou commande */
+/** Ce que vise l'appel, sur une ligne : chemin, motif, commande, recherche ou information retenue */
 export function codeToolTarget(tool: Pick<CodeToolCall, 'name' | 'input'>): string {
   const input = tool.input;
   const value = (key: string) => {
@@ -50,6 +55,8 @@ export function codeToolTarget(tool: Pick<CodeToolCall, 'name' | 'input'>): stri
   let target = '';
   if (tool.name === 'run_command') target = value('command');
   else if (tool.name === 'glob' || tool.name === 'grep') target = value('pattern');
+  else if (tool.name === 'search_memory') target = value('query');
+  else if (tool.name === 'remember_fact') target = value('fact');
   else target = value('path') || (tool.name === 'list_dir' ? '.' : '');
   const line = target.replace(/\s+/g, ' ').trim();
   return line.length > TARGET_LENGTH ? `${line.slice(0, TARGET_LENGTH)}…` : line;
