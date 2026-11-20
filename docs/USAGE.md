@@ -1339,7 +1339,7 @@ Vous : "N'oublie pas que mon manager s'appelle Thomas Dupont"
 → Fait enregistré : [general] mon manager s'appelle Thomas Dupont
 ```
 
-Vous pouvez aussi ajouter, modifier ou supprimer des faits dans le panneau Mémoire. À chaque réponse du chat, ses faits utiles à votre message (mots en commun, puis les plus récents) sont injectés dans le prompt du modèle. Dans la conversation Code (VS Code, page Code, vue Code du téléphone), « retiens que… » vaut pour le projet ouvert dans VS Code (« retiens pour tous mes projets que… » : pour tous), et ces faits du code vont dans son prompt à elle, pas dans celui du chat. Détails : [MEMORY.md](MEMORY.md).
+Vous pouvez aussi ajouter, modifier ou supprimer des faits dans le panneau Mémoire. À chaque réponse du chat, ses faits utiles à votre message (mots en commun, puis les plus récents) sont injectés dans le prompt du modèle. Dans la conversation Code (VS Code, page Code, vue Code du téléphone), « retiens que… » vaut pour le projet ouvert dans VS Code (« retiens pour tous mes projets que… » : pour tous), et ces faits du code vont dans son prompt à elle, pas dans celui du chat. Dans le chat comme dans la conversation Code, le modèle lit quoi retenir : « oublie que… » ou « retiens plutôt que… » retire ou remplace un fait (indicateur « 🧠 Oublié »), et ce que vous dites de durable sur vous ou sur la façon de vous répondre, sans « retiens », est retenu de lui-même, montré à la fin de la réponse ; dans la conversation Code, « retiens-le pour tous mes projets » étend le fait retenu juste avant. Détails : [MEMORY.md](MEMORY.md).
 
 ### 💼 Workspaces / Sessions
 
@@ -1529,7 +1529,7 @@ L'extension officielle **My_AI Relay** est publiée sur le **Marketplace VS Code
 | `run_command` | Commande shell exécutée dans le workspace, sortie capturée | **Modal** |
 | `search_memory` | Recherche dans la mémoire de My_AI (faits, documents du panneau Mémoire), exécutée sur le PC | Auto |
 
-« Retiens que… », tapé dans la conversation Code, est enregistré pour le dossier ouvert dans VS Code (« retiens pour tous mes projets que… » : pour tous) et montré par une carte « Retenu » ; ces faits du code reviennent d'office dans la conversation Code, pas dans le chat. Voir [MEMORY.md](MEMORY.md#-dans-la-conversation-code-vs-code-page-code-téléphone).
+« Retiens que… », tapé dans la conversation Code, est enregistré pour le dossier ouvert dans VS Code (« retiens pour tous mes projets que… » : pour tous) et montré par une carte « Retenu » ; ces faits du code reviennent d'office dans la conversation Code, pas dans le chat. « Retiens-le », « garde ça en tête » retiennent ce qui précède : c'est le modèle qui lit quoi retenir. « Oublie que… » retire un fait (carte « Oublié »), « retiens plutôt que… » le remplace, et une préférence durable donnée sans « retiens » est retenue d'elle-même, montrée à la fin de la réponse. Voir [MEMORY.md](MEMORY.md#-dans-la-conversation-code-vs-code-page-code-téléphone).
 
 Pour chaque opération destructive, le modal propose : *Autoriser une fois* / *Autoriser pour ce fichier (mémorisé pour la session)* / *Tout autoriser pour cet outil dans la session* / *Refuser*. Pour un message tapé sur la page **Code** du PC ou dans la vue **Code** du téléphone, pas de modal : les mêmes choix s'affichent en boutons dans la carte de l'outil, dans VS Code, sur le PC et sur le téléphone, et la première réponse compte.
 

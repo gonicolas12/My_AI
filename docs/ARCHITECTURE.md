@@ -401,12 +401,15 @@ Architecture:
 │   projets) ou project (un dossier ouvert dans VS Code) ; une base d'avant
 │   les portées les reçoit à l'ouverture, ses faits restent au chat
 ├─ Mémorisation depuis le chat et la conversation Code : extract_remember_request
-│   (« retiens que… ») + remember(portée) sans doublon (un fait de tous les
-│   projets vaut pour chacun ; retenu pour tous, un fait de projet s'étend) ;
-│   aussi l'outil remember_fact du modèle, dans le chat seulement
+│   (« retiens que… », règles de repli) + remember(portée) sans doublon (un
+│   fait de tous les projets vaut pour chacun ; retenu pour tous, un fait de
+│   projet s'étend) ; remember_block : le bloc d'un « retiens ceci : … »,
+│   retenu en entier ; asks_to_remember / asks_to_forget : le message
+│   demande-t-il de retenir (« retiens-le » compris) ou d'oublier
 ├─ chat_facts() / code_facts(dossiers) : ceux que chaque conversation reçoit
-├─ select_facts : mots communs avec la requête, puis les plus récents
-│   (parmi ceux du chat par défaut)
+├─ select_facts : mots communs avec la requête (pour un fait du code, « code »
+│   et le nom de son projet en sont), puis les plus récents (parmi ceux du
+│   chat par défaut)
 ├─ search_text : faits de l'outil search_memory, chacun avec sa portée
 ├─ Injection contexte dans le prompt IA (et dans la synthèse après outils)
 └─ CRUD complet avec recherche plein texte
@@ -418,12 +421,40 @@ CodeMemory (relay/code_hub.py la reçoit du Relay, avec le modèle) :
 ├─ prompt_block(dossiers) : section « Mémoire » du prompt système, les
 │   faits du code (tous les projets, puis les dossiers ouverts), jamais ceux
 │   du chat (nom, famille… que le modèle glissait dans les fichiers)
-├─ remember(message, dossiers) : « retiens que… » du seul message de
-│   l'utilisateur (jamais un fichier ni un résultat d'outil), pour le premier
-│   dossier ouvert, ou pour tous les projets si le message le dit
+├─ update(message, dossiers, échanges, modèle) : ce qu'un message change
+│   dans la mémoire du code. Le modèle de la conversation le lit
+│   (MemoryReader : un appel court à Ollama, JSON contraint, avec les faits
+│   déjà retenus, numérotés) : à retenir, et numéros à oublier, chacun
+│   confirmé par un second appel (confirm : le message le vise-t-il ?). Demande
+│   (asks : « retiens… », « oublie… », « retiens plutôt que… », en tête de
+│   phrase, pas une question) : il doit agir, avec les derniers échanges, et
+│   les règles de remember_request le remplacent s'il échoue. Sans demande :
+│   il peut retenir une préférence durable, au besoin à la place d'un fait
+│   qu'elle contredit, jamais rien supprimer d'autre. Ce qu'il retient doit
+│   venir de ce que l'utilisateur a écrit (_grounded) ; les mots du message
+│   disent pour quels projets ; rien à retenir ou à oublier : une note
+│   pour le modèle, sans carte
 └─ search(...) : outil search_memory, exécuté sur le PC : faits du chat, du
     code et des dossiers ouverts, puis documents (AIEngine.search_memory) ;
     faute de fait correspondant, seuls ceux du code sont proposés
+apply_reading(...) : ce que le modèle a lu, vérifié puis écrit (partagé
+    avec le chat, core/chat_memory.py)
+```
+
+**`core/chat_memory.py`** - Mémoire dans le chat (fenêtre et téléphone)
+```python
+ChatMemory (AIEngine.process_query_stream) : la même lecture que la
+conversation Code (ChatMemoryReader, le modèle du chat, ses propres consignes) :
+├─ Demande (« retiens… », « oublie… », « retiens plutôt que… ») : avant la
+│   réponse, avec les derniers échanges et tous les faits (une demande d'oubli
+│   vise aussi ceux du code) ; le bloc MÉMORISATION du prompt la confirme, les
+│   indicateurs remember_fact / forget_fact la montrent
+├─ Sans demande : ce que l'utilisateur dit de durable sur lui ou sur la façon
+│   dont il veut qu'on lui réponde, lu dans un fil pendant la réponse
+│   (_read_memory_later), signalé à la fin ; au besoin à la place d'un fait du
+│   chat qu'il contredit, jamais rien supprimer d'autre
+└─ Seul son message compte (memory_text : rien pour une commande « /… »
+    déroulée) : le modèle du chat n'a pas d'outil pour écrire dans la mémoire
 ```
 
 **`core/memory_store.py`** - Accès CRUD unifié à la mémoire
@@ -755,11 +786,16 @@ Un hub par processus (get_code_hub), qui survit aux redémarrages du Relay :
 │   sur la boucle asyncio du Relay, ses outils dans l'extension la plus
 │   récemment active (RemoteToolExecutor, avec l'origine du message), ceux
 │   de la mémoire sur le PC (_HubTools)
-├─ Mémoire (core/code_memory.py, quand l'appli en a une) : « retiens que… »
-│   du message enregistré avant la réponse, une carte remember_fact et une
-│   note [Mémoire] pour le modèle ; la section « Mémoire » du prompt système
-│   reste telle quelle après un « retiens que… » (_memory_view, gardée avec
-│   la conversation), et revient refaite quand le début de l'historique part
+├─ Mémoire (core/code_memory.py, quand l'appli en a une) : une demande
+│   (« retiens que… », « oublie que… ») est faite avant la réponse (le modèle
+│   lit quoi, avec les derniers échanges affichés, _recent_exchanges), avec
+│   ses cartes remember_fact / forget_fact et une note [Mémoire] pour le
+│   modèle ; un message sans demande est lu pendant la réponse, sans la
+│   retarder (_read_memory), et ses cartes viennent à la fin. La section
+│   « Mémoire » du prompt système reste telle quelle (_memory_view : faits
+│   ajoutés et retirés, gardée avec la conversation), et revient refaite
+│   quand le début de l'historique part ; une note [Mémoire] recopiée par
+│   le modèle est retirée de sa réponse (_without_note)
 ├─ Approbations : l'extension rapporte awaiting-approval (avec les réponses
 │   possibles hors de VS Code, pour un message du PC ou du téléphone),
 │   running, denied ; approve() transmet la réponse ; pas de délai pendant
@@ -789,7 +825,9 @@ Architecture:
 ├─ Callbacks : on_gui_message() / on_ws_message() (enregistrables)
 ├─ Réponse asynchrone :
 │   ├─ wait_for_ai_response(timeout=relay.response_timeout) — asyncio + run_in_executor
-│   └─ submit_ai_response(text)          — appelé par le ChatService
+│   └─ submit_ai_response(text)          — appelé par le ChatService ; ses
+│       memory_notes (ce que la réponse a retenu ou oublié) vont avec elle,
+│       gardées dans l'historique (response_extras)
 ├─ Interruption (bouton Stop du chat mobile) :
 │   ├─ request_interrupt()               — posé par le handler WS
 │   └─ consume_interrupt_request()       — sondé par le ChatService (core/chat_service.py)
@@ -800,6 +838,7 @@ RelayMessage (dataclass):
 ├─ text, is_user, timestamp, source ("relay"/"local"), message_id
 ├─ image_path: Optional[str]     — image consommée par le modèle vision
 ├─ file_paths: List[str]         — documents ajoutés au contexte vectoriel
+├─ memory_notes: List[str]       — ce que la réponse a retenu ou oublié
 └─ message_id auto : "{source}_{timestamp_ms}"
 ```
 
@@ -878,7 +917,9 @@ Message du mobile (RelayBridge.on_gui_message → ChatService), fenêtre ouverte
 │   (custom_ai.add_file_to_context), puis jamais oublié
 ├─ Image : encodée pour le modèle vision
 └─ Même pipeline que le PC → jetons et réponse renvoyés par submit_ai_* ;
-   la fenêtre, si elle est ouverte, montre l'échange en direct (badge « Mobile »)
+   la fenêtre, si elle est ouverte, montre l'échange en direct (badge « Mobile ») ;
+   les indicateurs « 🧠 Mémorisé » / « 🧠 Oublié » du tour suivent la réponse
+   (memory_notes), au bas de sa bulle
 ```
 
 ### 🤖 Models - Intelligence Artificielle
