@@ -60,6 +60,7 @@
   "Opening {target}": "Открытие {target}",
   "Searching memory for “{target}”": "Поиск «{target}» в памяти",
   "Remembered: {target}": "Запомнено: {target}",
+  "Forgotten: {target}": "Забыто: {target}",
   "Input": "Аргументы",
   "Output": "Результат",
   "(empty)": "(пусто)",

@@ -391,7 +391,8 @@ function connect() {
       // Si on était en train de streamer ce message, on finalise la bulle
       // existante au lieu d'en créer une nouvelle (évite le doublon visuel).
       // links : fichiers cités ou nommés, files : documents et images produits
-      finalizeStreaming(mid, data.message, data.timestamp, { links: data.links, files: data.files });
+      finalizeStreaming(mid, data.message, data.timestamp, { links: data.links, files: data.files,
+        memoryNotes: data.memory_notes });
       updateSendButton();
     } else if (data.type === 'chunk') {
       // Chunk de streaming : texte cumulatif courant de la génération.
@@ -551,7 +552,7 @@ async function loadHistory() {
       if (mid) renderedMessageIds.add(key);
       addMessage(m.text, !!m.is_user, m.timestamp, false, m.is_user
         ? { attachments: historyAttachments(m) }
-        : { links: m.links, files: m.files });
+        : { links: m.links, files: m.files, memoryNotes: m.memory_notes });
     }
     historyLoaded = true;
     // Si le dernier message est un message utilisateur sans réponse,
@@ -625,7 +626,8 @@ async function checkPendingResponse(messageId) {
     removeTyping();
     isWaiting = false;
     if (messageId === lastSentMessageId) lastSentMessageId = null;
-    finalizeStreaming(messageId, data.message, data.timestamp, { links: data.links, files: data.files });
+    finalizeStreaming(messageId, data.message, data.timestamp, { links: data.links, files: data.files,
+      memoryNotes: data.memory_notes });
     updateSendButton();
   } catch (e) {
     console.warn('[Relay] checkPendingResponse failed:', e);
@@ -876,7 +878,8 @@ function stopGeneration() {
 
 // extra : { attachments } d'un message de l'utilisateur ([{ name, isImage,
 // fileId?, path?, file? }]) ; { links, files } d'une réponse (fichiers cités
-// ou nommés, documents et images produits)
+// ou nommés, documents et images produits ; memoryNotes : ce qu'elle a retenu
+// ou oublié dans la mémoire, « 🧠 Mémorisé : … »)
 function addMessage(text, isUser, timestamp, autoOpen, extra) {
   if (welcomeEl) welcomeEl.style.display = 'none';
   extra = extra || {};
@@ -906,10 +909,30 @@ function addMessage(text, isUser, timestamp, autoOpen, extra) {
       '<span class="time">' + time + '</span></div>';
   }
 
+  if (!isUser) attachMemoryNotes(msg, extra.memoryNotes);
   messagesEl.appendChild(msg);
   // Dans la page : ses images produites (historique) se placent avant elle
   if (!isUser) attachAnswerFiles(msg, text, extra.files, autoOpen);
   scrollToBottom();
+}
+
+// Ce qu'une réponse a retenu ou oublié dans la mémoire de My_AI (« 🧠 Mémorisé :
+// … », « 🧠 Oublié : … »), sous son texte, comme les indicateurs de la fenêtre
+function attachMemoryNotes(msgEl, notes) {
+  if (!Array.isArray(notes) || !notes.length) return;
+  var bubble = msgEl.querySelector('.bubble');
+  if (!bubble) return;
+  var box = document.createElement('div');
+  box.className = 'memory-notes';
+  notes.forEach(function (note) {
+    if (typeof note !== 'string' || !note) return;
+    var line = document.createElement('div');
+    line.className = 'memory-note';
+    line.setAttribute('dir', 'auto');
+    line.textContent = note;
+    box.appendChild(line);
+  });
+  bubble.insertBefore(box, bubble.querySelector('.time'));
 }
 
 // 🎨 Affiche une image générée par l'IA dans une bulle. `b64` est le PNG
@@ -1007,6 +1030,7 @@ function finalizeStreaming(mid, finalText, timestamp, extra) {
       '<div class="bubble"><div class="md" dir="auto">' +
       renderMarkdown(finalText, { preview: true, links: extra.links }) + '</div>' +
       '<span class="time">' + time + '</span></div>';
+    attachMemoryNotes(streamingMessageEl, extra.memoryNotes);
     attachAnswerFiles(streamingMessageEl, finalText, extra.files, true);
   }
   streamingMessageEl = null;

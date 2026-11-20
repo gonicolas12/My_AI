@@ -172,10 +172,20 @@ describe('réponse de la page Code', () => {
           output: 'Documents indexés…',
           host: true,
         },
+        {
+          kind: 'tool',
+          call_id: 'm3',
+          name: 'forget_fact',
+          input: { fact: 'j’utilise unittest', scope: 'project', project: 'api' },
+          status: 'completed',
+          output: 'Retiré de la mémoire : il ne sera plus appliqué.',
+          host: true,
+        },
       ],
     };
     renderUi(<CodeReply message={memory} isLast />);
     expect(screen.getByText('Retenu : j’indente avec des tabulations')).toBeInTheDocument();
+    expect(screen.getByText('Oublié : j’utilise unittest')).toBeInTheDocument();
     expect(
       screen.getByText('Recherche de « calendrier du projet » dans la mémoire'),
     ).toBeInTheDocument();

@@ -30,6 +30,7 @@ const ICONS: Record<string, LucideIcon> = {
   web_search: Search,
   search_memory: Brain,
   remember_fact: Brain,
+  forget_fact: Brain,
   read_local_file: FileText,
   list_directory: FolderOpen,
   generate_code: Code2,

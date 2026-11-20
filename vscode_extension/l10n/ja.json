@@ -60,6 +60,7 @@
   "Opening {target}": "{target} を開く",
   "Searching memory for “{target}”": "記憶で「{target}」を検索",
   "Remembered: {target}": "記憶しました: {target}",
+  "Forgotten: {target}": "忘れました: {target}",
   "Input": "引数",
   "Output": "結果",
   "(empty)": "(空)",

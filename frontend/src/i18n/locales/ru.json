@@ -793,6 +793,7 @@
   "code.tool.open_file": "Открытие {target}",
   "code.tool.search_memory": "Поиск «{target}» в памяти",
   "code.tool.remember_fact": "Запомнено: {target}",
+  "code.tool.forget_fact": "Забыто: {target}",
   "code.tool.input": "Аргументы",
   "code.tool.output": "Результат",
   "code.tool.empty": "(пусто)",

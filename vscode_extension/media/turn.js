@@ -45,8 +45,8 @@
   };
 
   // Outils de l'extension (AGENT_TOOLS de core/agentic_executor.py), puis ceux
-  // de la mémoire de My_AI, exécutés sur le PC (MEMORY_TOOLS ; remember_fact :
-  // un « retiens que… » enregistré)
+  // de la mémoire de My_AI, exécutés sur le PC (MEMORY_TOOLS ; remember_fact et
+  // forget_fact : une information retenue ou oubliée)
   var TOOLS = {
     read_file: { icon: 'file-text', label: 'code.tool.read_file' },
     write_file: { icon: 'file-plus', label: 'code.tool.write_file' },
@@ -59,6 +59,7 @@
     open_file: { icon: 'external-link', label: 'code.tool.open_file' },
     search_memory: { icon: 'brain', label: 'code.tool.search_memory' },
     remember_fact: { icon: 'brain', label: 'code.tool.remember_fact' },
+    forget_fact: { icon: 'brain', label: 'code.tool.forget_fact' },
   };
   // Appel qui ne s'est pas simplement terminé : son état, à côté du libellé
   var STATUS_TEXTS = {
@@ -100,7 +101,7 @@
     var value = part.name === 'run_command' ? input.command
       : (part.name === 'glob' || part.name === 'grep') ? input.pattern
         : part.name === 'search_memory' ? input.query
-          : part.name === 'remember_fact' ? input.fact
+          : (part.name === 'remember_fact' || part.name === 'forget_fact') ? input.fact
             : (input.path || (part.name === 'list_dir' ? '.' : ''));
     var line = String(value || '').replace(/\s+/g, ' ').trim();
     return line.length > TARGET_LENGTH ? line.slice(0, TARGET_LENGTH) + '…' : line;

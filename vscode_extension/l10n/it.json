@@ -60,6 +60,7 @@
   "Opening {target}": "Apertura di {target}",
   "Searching memory for “{target}”": "Ricerca di «{target}» nella memoria",
   "Remembered: {target}": "Memorizzato: {target}",
+  "Forgotten: {target}": "Dimenticato: {target}",
   "Input": "Argomenti",
   "Output": "Risultato",
   "(empty)": "(vuoto)",

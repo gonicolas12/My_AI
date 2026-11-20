@@ -150,6 +150,7 @@
   "code.tool.open_file": "فتح {target}",
   "code.tool.search_memory": "البحث عن «{target}» في الذاكرة",
   "code.tool.remember_fact": "تم الحفظ: {target}",
+  "code.tool.forget_fact": "تم النسيان: {target}",
   "code.tool.input": "المعطيات",
   "code.tool.output": "النتيجة",
   "code.tool.empty": "(فارغ)",

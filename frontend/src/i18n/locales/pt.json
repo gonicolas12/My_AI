@@ -749,6 +749,7 @@
   "code.tool.open_file": "Abrindo {target}",
   "code.tool.search_memory": "Buscando “{target}” na memória",
   "code.tool.remember_fact": "Memorizado: {target}",
+  "code.tool.forget_fact": "Esquecido: {target}",
   "code.tool.input": "Argumentos",
   "code.tool.output": "Resultado",
   "code.tool.empty": "(vazio)",
