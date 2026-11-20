@@ -212,7 +212,19 @@ def test_an_answer_keeps_its_links_and_the_files_it_produced(bridge, tmp_path):
     assert extras["files"] == [{"path": str(document), "name": "rapport.docx", "kind": "document"}]
     answer = bridge.history[-1]
     assert answer["links"] == extras["links"] and answer["files"] == extras["files"]
-    assert bridge.response_extras("inconnu") == {"links": [], "files": []}
+    assert bridge.response_extras("inconnu") == {"links": [], "files": [], "memory_notes": []}
+
+
+def test_an_answer_keeps_what_it_remembered_or_forgot(bridge):
+    """Ce que la réponse a changé dans la mémoire, sous sa bulle sur le téléphone,
+    après un rechargement aussi."""
+    bridge.arm_response("relay_9")
+    bridge.submit_ai_response("C'est noté.", message_id="relay_9", memory_notes=[
+        "🧠 Oublié : « j'habite à Lyon »", "🧠 Mémorisé : « j'habite à Nantes »", 3, " "])
+
+    notes = ["🧠 Oublié : « j'habite à Lyon »", "🧠 Mémorisé : « j'habite à Nantes »"]
+    assert bridge.response_extras("relay_9")["memory_notes"] == notes
+    assert bridge.history[-1]["memory_notes"] == notes
 
 
 def test_the_conversation_knows_its_files_but_not_folders(bridge, tmp_path):

@@ -251,6 +251,7 @@ class FakeBridge:
         self.responses = []
         self.links = []
         self.documents = []
+        self.memory_notes = []
         self.interrupt = False
 
     def on_gui_message(self, callback):
@@ -271,9 +272,10 @@ class FakeBridge:
     def submit_ai_chunk(self, text, message_id=None):
         self.chunks.append((message_id, text))
 
-    def submit_ai_response(self, text, message_id=None, links=None):
+    def submit_ai_response(self, text, message_id=None, links=None, memory_notes=None):
         self.responses.append((message_id, text))
         self.links.append(links)
+        self.memory_notes.append(memory_notes)
 
     def submit_ai_document(self, path, message_id=None):
         self.documents.append((message_id, path))
@@ -357,7 +359,7 @@ def test_message_makes_the_tk_engine_calls_in_the_same_order(chat):
     assert set(kwargs) == {
         "on_token", "on_tool_call", "on_thinking_token", "on_thinking_complete",
         "image_base64", "is_interrupted_callback", "on_delete_confirm", "on_document",
-        "on_tool_result",
+        "on_tool_result", "memory_text",
     }
     # Pas de réflexion pour une requête simple, comme dans Tk
     assert kwargs["on_thinking_token"] is None and kwargs["on_thinking_complete"] is None
@@ -393,6 +395,17 @@ def test_slash_command_is_expanded_but_the_message_keeps_it(chat):
 
     assert ("process_query_stream", "Écris un programme complet pour : un morpion") in chat.engine.calls
     assert texts(chat.service.snapshot())[0] == "/code un morpion"
+
+
+def test_memory_does_not_read_an_expanded_command(chat):
+    """La mémoire du chat lit les mots de l'utilisateur : pas le prompt qu'une
+    commande « /… » déroule (un « réponds toujours… » de la bibliothèque aurait été
+    retenu comme une préférence)."""
+    ask(chat, "Je suis végétarien")
+    assert chat.engine.stream_kwargs["memory_text"] is None
+
+    ask(chat, "/code un morpion")
+    assert chat.engine.stream_kwargs["memory_text"] == ""
 
 
 def test_stop_keeps_the_partial_answer(chat):
@@ -1317,6 +1330,22 @@ def test_mobile_answer_carries_the_files_it_names(chat):
     wait_for(chat.events, "assistant.done")
     assert bridge.links == [[{"text": "budget.xlsx", "path": str(document),
                               "dir": False, "name": True}]]
+
+
+def test_mobile_answer_shows_what_it_remembered_or_forgot(chat):
+    """Les indicateurs « 🧠 Oublié », « 🧠 Mémorisé » de la fenêtre : sous la bulle du
+    téléphone aussi, qui n'affiche pas les autres outils."""
+    chat.engine.script = [("tool", "forget_fact", {"fact": "j'habite à Lyon"}),
+                          ("token", "C'est noté."),
+                          ("tool", "web_search", {"query": "météo"}),
+                          ("tool", "remember_fact", {"fact": "j'habite à Nantes"})]
+    bridge = FakeBridge()
+    chat.service.attach_bridge(bridge)
+    bridge.deliver(RelayMessage(text="J'ai déménagé à Nantes", is_user=True, message_id="relay_8"))
+
+    wait_for(chat.events, "assistant.done")
+    assert bridge.memory_notes == [[tr("tool.forget_fact", fact="j'habite à Lyon"),
+                                    tr("tool.remember_fact", fact="j'habite à Nantes")]]
 
 
 def test_desktop_answers_are_not_sent_to_the_mobile(chat):

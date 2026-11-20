@@ -1,9 +1,9 @@
 /*
  * Appels d'outils de la page Code : ceux que l'extension VS Code exécute dans
  * son workspace (AGENT_TOOLS de core/agentic_executor.py), et ceux de la mémoire
- * de My_AI, exécutés sur le PC (MEMORY_TOOLS, et « retiens que… » : la carte
- * remember_fact), avec leur icône et leur libellé (« Lecture de src/app.ts »,
- * « Commande npm test », « Retenu : … »).
+ * de My_AI, exécutés sur le PC (MEMORY_TOOLS, et les cartes remember_fact et
+ * forget_fact : une information retenue ou oubliée), avec leur icône et leur
+ * libellé (« Lecture de src/app.ts », « Commande npm test », « Retenu : … »).
  */
 
 import {
@@ -36,6 +36,7 @@ const TOOLS: Record<string, { icon: LucideIcon; label: MessageKey }> = {
   open_file: { icon: ExternalLink, label: 'code.tool.open_file' },
   search_memory: { icon: Brain, label: 'code.tool.search_memory' },
   remember_fact: { icon: Brain, label: 'code.tool.remember_fact' },
+  forget_fact: { icon: Brain, label: 'code.tool.forget_fact' },
 };
 
 /** Longueur d'une commande ou d'un motif dans le libellé */
@@ -56,7 +57,7 @@ export function codeToolTarget(tool: Pick<CodeToolCall, 'name' | 'input'>): stri
   if (tool.name === 'run_command') target = value('command');
   else if (tool.name === 'glob' || tool.name === 'grep') target = value('pattern');
   else if (tool.name === 'search_memory') target = value('query');
-  else if (tool.name === 'remember_fact') target = value('fact');
+  else if (tool.name === 'remember_fact' || tool.name === 'forget_fact') target = value('fact');
   else target = value('path') || (tool.name === 'list_dir' ? '.' : '');
   const line = target.replace(/\s+/g, ' ').trim();
   return line.length > TARGET_LENGTH ? `${line.slice(0, TARGET_LENGTH)}…` : line;

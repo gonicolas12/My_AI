@@ -146,6 +146,7 @@
   "code.tool.open_file": "{target} openen",
   "code.tool.search_memory": "Zoeken naar ‘{target}’ in het geheugen",
   "code.tool.remember_fact": "Onthouden: {target}",
+  "code.tool.forget_fact": "Vergeten: {target}",
   "code.tool.input": "Argumenten",
   "code.tool.output": "Resultaat",
   "code.tool.empty": "(leeg)",

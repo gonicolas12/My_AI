@@ -24,7 +24,7 @@ from fastapi.testclient import TestClient
 from PIL import Image
 
 from core.agentic_executor import RemoteToolExecutor, build_system_prompt
-from core.code_memory import CodeMemory
+from core.code_memory import CodeMemory, Reading
 from core.i18n import tr
 from core.knowledge_base_manager import KnowledgeBaseManager
 from interfaces.desktop import files as local_files
@@ -798,6 +798,186 @@ def test_remember_in_the_code_conversation_saves_for_the_open_folder(hub, loop, 
     # Le modèle le sait : la note suit son message
     assert seen[0].startswith("Retiens que j'indente avec des tabulations\n\n[Mémoire] ")
     assert "pour le projet « My_AI »" in seen[0]
+
+
+def _reading_hub(hub, tmp_path, read):
+    """Le hub avec la mémoire de l'appli ; le modèle qui lit ce qu'un message y change
+    est joué par read(message, context, known, project, asked) → (à retenir, à oublier)."""
+    kb = KnowledgeBaseManager(db_path=str(tmp_path / "facts.db"))
+
+    def reader(message, context, known, project, asked):
+        remember, forget = read(message, context, known, project, asked)
+        return Reading(list(remember), list(forget))
+
+    memory = CodeMemory(kb, reader=lambda llm: reader if llm.get("model") else None)
+    hub.set_llm_resolver(lambda: {**LLM, "memory": memory})
+    return kb
+
+
+def test_remember_it_for_all_my_projects_in_the_code_conversation(hub, loop, tmp_path):
+    """La conversation de la capture : « retiens que je fais mes test avec pytest »,
+    puis « retiens le pour tous mes projets ». La seconde n'enregistrait rien, et le
+    modèle répondait « C'est noté » quand même. Le modèle de la conversation lit
+    maintenant quoi retenir, avec l'échange précédent."""
+    calls = []
+
+    def read(message, context, known, project, asked):
+        calls.append((message, context, known, project, asked))
+        return ["je fais mes test avec pytest"], []
+
+    kb = _reading_hub(hub, tmp_path, read)
+    seen = []
+    FakeExecutor.script = lambda run: (seen.append(run["user_message"]), answer_briefly(run))[1]
+    connect_vscode(hub, loop)
+    phone = subscribe_phone(hub)
+
+    hub.send("retiens que je fais mes test avec pytest", "vscode")
+    wait_until(lambda: len(phone.of("code_done")) == 1)
+    hub.send("retiens le pour tous mes projets", "vscode")
+    wait_until(lambda: len(phone.of("code_done")) == 2)
+
+    assert [(f["value"], f["scope"]) for f in kb.get_all_facts()] == [
+        ("je fais mes test avec pytest", "code")]
+    assert [card["output"] for card in phone.of("code_tool")] == [
+        tr("code.memory.savedProject", project="My_AI"), tr("code.memory.savedAll")]
+    assert "pour tous ses projets" in seen[1]
+    # Le modèle a lu l'échange précédent, tel qu'il s'affiche (sans note [Mémoire])
+    assert calls[1][1] == [("Utilisateur", "retiens que je fais mes test avec pytest"),
+                           ("Assistant", "C'est noté.")]
+    assert calls[1][3:] == ("My_AI", True)
+
+
+def test_a_remember_it_with_nothing_before_asks_what_to_remember(hub, loop, tmp_path):
+    kb = _reading_hub(hub, tmp_path, lambda *_args: ([], []))
+    seen = []
+    FakeExecutor.script = lambda run: (seen.append(run["user_message"]), answer_briefly(run))[1]
+    connect_vscode(hub, loop)
+    phone = subscribe_phone(hub)
+
+    hub.send("Retiens-le", "desktop")
+    wait_until(lambda: phone.of("code_done"))
+
+    # Rien d'enregistré, pas de carte, et le modèle ne peut pas dire « c'est noté »
+    assert kb.get_all_facts() == [] and not phone.of("code_tool")
+    assert seen[0].startswith("Retiens-le\n\n[Mémoire] L'utilisateur demande de retenir "
+                              "quelque chose, mais on ne sait pas quoi")
+
+
+def test_forget_in_the_code_conversation_shows_a_card_and_keeps_the_prompt(hub, loop,
+                                                                            tmp_path):
+    """« Oublie que… » : le fait part, une carte « Oublié » le montre sur les trois
+    surfaces, la note le dit au modèle, et le prompt système ne change pas : Ollama
+    n'a pas à relire toute la conversation."""
+    kb = _reading_hub(hub, tmp_path, lambda *_args: ([], [1]))
+    kb.add_fact("general", key="J'indente avec des tabulations",
+                value="J'indente avec des tabulations", scope="project",
+                project=r"C:\dev\My_AI")
+    seen = []
+    FakeExecutor.script = lambda run: (seen.append(run["user_message"]), answer_briefly(run))[1]
+    _link, vscode = connect_vscode(hub, loop)
+    phone = subscribe_phone(hub)
+    hub.send("Bonjour", "desktop")
+    wait_until(lambda: len(phone.of("code_done")) == 1)
+    prompt = hub._llm_history[0]["content"]  # pylint: disable=protected-access
+    assert "tabulations" in prompt
+
+    hub.send("Oublie que j'indente avec des tabulations", "vscode")
+    wait_until(lambda: len(phone.of("code_done")) == 2)
+
+    assert kb.get_all_facts() == []
+    card = phone.of("code_tool")[0]
+    assert (card["name"], card["host"], card["input"]["fact"], card["output"]) == (
+        "forget_fact", True, "J'indente avec des tabulations", tr("code.memory.forgotten"))
+    assert vscode.of("code_tool")[0]["name"] == "forget_fact"
+    assert "retirer de sa mémoire : « J'indente avec des tabulations »" in seen[1]
+    # Le message suivant garde le même prompt système : la note a suffi au modèle
+    hub.send("Merci beaucoup !", "desktop")
+    wait_until(lambda: len(phone.of("code_done")) == 3)
+    assert hub._llm_history[0]["content"] == prompt  # pylint: disable=protected-access
+
+
+def test_a_preference_given_in_passing_gets_its_card_at_the_end(hub, loop, tmp_path):
+    """« J'utilise toujours black… », sans « retiens » : lu pendant la réponse, qui
+    ne l'attend pas, et montré par une carte à sa fin. Le modèle de la réponse n'a
+    pas de note : rien à confirmer."""
+    timeline = []
+
+    def read(message, context, known, project, asked):
+        timeline.append("lecture")
+        time.sleep(0.5)
+        timeline.append("lu")
+        return ["j'utilise toujours black pour formater mon code"], []
+
+    kb = _reading_hub(hub, tmp_path, read)
+    seen = []
+
+    async def answer(run):
+        timeline.append("réponse")
+        seen.append(run["user_message"])
+        return await answer_briefly(run)
+
+    FakeExecutor.script = answer
+    connect_vscode(hub, loop)
+    phone = subscribe_phone(hub)
+
+    hub.send("J'utilise toujours black pour formater mon code.", "desktop")
+    wait_until(lambda: phone.of("code_done"))
+
+    assert [(f["value"], f["scope"]) for f in kb.get_all_facts()] == [
+        ("j'utilise toujours black pour formater mon code", "project")]
+    # La réponse a commencé sans attendre la lecture, et la carte vient après son texte
+    assert timeline.index("réponse") < timeline.index("lu")
+    parts = hub.snapshot()["messages"][1]["parts"]
+    assert [part["kind"] for part in parts] == ["text", "tool"]
+    assert (parts[1]["name"], parts[1]["output"]) == (
+        "remember_fact", tr("code.memory.savedProject", project="My_AI"))
+    assert seen[0] == "J'utilise toujours black pour formater mon code."
+
+
+CONFIRMED = "C'est noté : tu indentes avec des tabulations."
+
+
+async def echo_the_note(run):
+    """Le vrai modèle recopiait parfois la note [Mémoire] au bout de sa réponse."""
+    said = (CONFIRMED + "\n\n[Mémoire] À la demande de l'utilisateur, My_AI vient "
+            "d'enregistrer dans sa mémoire, pour le projet « My_AI » : …")
+    run["on_chunk"](CONFIRMED + "\n\n[Mé", 0)
+    run["on_chunk"](said, 0)
+    run["history"].append({"role": "user", "content": run["user_message"]})
+    run["history"].append({"role": "assistant", "content": said})
+    return said
+
+
+def test_the_note_the_model_copies_into_its_reply_is_not_shown(hub, loop, tmp_path):
+    _memory_hub(hub, tmp_path)
+    FakeExecutor.script = echo_the_note
+    connect_vscode(hub, loop)
+    phone = subscribe_phone(hub)
+
+    hub.send("Retiens que j'indente avec des tabulations", "desktop")
+    wait_until(lambda: phone.of("code_done"))
+
+    # Ni pendant l'écriture, ni à la fin, ni dans ce que le modèle relira
+    assert [chunk["text"] for chunk in phone.of("code_chunk")] == [CONFIRMED]
+    assert phone.of("code_done")[0]["text"] == CONFIRMED
+    assert hub._llm_history[-1]["content"] == CONFIRMED  # pylint: disable=protected-access
+
+
+def test_only_the_copied_note_leaves_the_reply():
+    """Sans note, le vrai modèle écrivait « [Mémoire] J'ai retenu… » en tête de sa
+    réponse, et le garde-fou d'avant effaçait toute la réponse : seul le repère part."""
+    note = ("[Mémoire] À la demande de l'utilisateur, My_AI vient d'enregistrer dans sa "
+            "mémoire, pour le projet « api » : L'utilisateur indente avec des tabulations.")
+    copied = CONFIRMED + "\n\n" + note
+    clean = hub_module._without_note  # pylint: disable=protected-access
+
+    assert clean(copied, note) == CONFIRMED
+    assert clean(CONFIRMED + "\n\n[Mémoire] À la demande de l'uti", note) == CONFIRMED
+    assert clean(CONFIRMED + "\n\n[Mé", note) == CONFIRMED
+    assert clean("[Mémoire] J'ai retenu que tu utilises black.") == (
+        "J'ai retenu que tu utilises black.")
+    assert clean("C'est noté. [Mémoire] Je l'appliquerai partout.", note) == (
+        "C'est noté. Je l'appliquerai partout.")
 
 
 async def search_the_memory(run):

@@ -171,9 +171,12 @@ dans la carte de l'outil pour un message tapé sur le PC ou le téléphone).
 
 **Mémoire** : « retiens que… », tapé dans la vue, est enregistré par My_AI
 pour le dossier ouvert (« retiens pour tous mes projets que… » : pour
-tous), et une carte « Retenu » le montre. Ce qui est retenu pour le code
-revient dans chaque conversation Code de ce dossier ; le reste de la
-mémoire, à la demande (`search_memory`). Voir docs/MEMORY.md du dépôt.
+tous), et une carte « Retenu » le montre. « Oublie que… » ou « retiens
+plutôt que… » retire ou remplace un fait (une carte « Oublié »), et une
+préférence durable donnée en passant (« j'utilise toujours black ») est
+retenue d'elle-même. Ce qui est retenu pour le code revient dans chaque
+conversation Code de ce dossier ; le reste de la mémoire, à la demande
+(`search_memory`). Voir docs/MEMORY.md du dépôt.
 
 ### Sandbox & approbations
 

@@ -22,6 +22,7 @@ from core.knowledge_base_manager import (
     is_assistant_fact,
     is_only_remember_request,
     memorization_confirmation,
+    remember_block,
     reply_language,
     spoken_to_user,
     user_fact_for_prompt,
@@ -400,6 +401,9 @@ def test_remember_refuses_an_empty_value(kb):
         ("Retiens ceci : comment faire un café : moudre, filtrer, servir",
          "comment faire un café : moudre, filtrer, servir"),
         ("Retiens que qui dort dîne", "qui dort dîne"),
+        # Un fait qui en remplace un autre
+        ("Non, retiens plutôt que j'habite à Nantes", "j'habite à Nantes"),
+        ("Remember instead that I live in Paris", "I live in Paris"),
     ],
 )
 def test_explicit_requests_are_recognized(message, fact):
@@ -435,6 +439,31 @@ def test_other_messages_are_not_requests(message):
 
 def test_pasted_text_is_not_a_fact():
     assert extract_remember_request("Retiens ceci : " + "mot " * MAX_REMEMBERED_CHARS) is None
+
+
+@pytest.mark.parametrize(
+    ("message", "block"),
+    [
+        # Le bloc entier, consignes comprises : le modèle qui lit la demande le
+        # découpait ou le reformulait
+        ("Retiens ceci : lance build.bat. Vérifie ensuite les logs.",
+         "lance build.bat. Vérifie ensuite les logs"),
+        ("Mémorise : le serveur de prod est srv-prod-01, on déploie le jeudi",
+         "le serveur de prod est srv-prod-01, on déploie le jeudi"),
+        ("Au fait, retiens ceci : je suis végétarien. Tu as une recette ?",
+         "je suis végétarien"),
+        ("Remember this: my build command is make all", "my build command is make all"),
+        # « que… » (le modèle lit quoi retenir), un renvoi, une question
+        ("Retiens que mon chat s'appelle Félix", None),
+        ("Retiens ça.", None),
+        ("Retiens ça pour plus tard", None),
+        ("Retiens ceci : quel est le code du portail ?", None),
+        ("Je retiens ceci : rien", None),
+        ("", None),
+    ],
+)
+def test_remember_block(message, block):
+    assert remember_block(message) == block
 
 
 @pytest.mark.parametrize(

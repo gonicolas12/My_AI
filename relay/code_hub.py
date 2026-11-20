@@ -95,6 +95,20 @@ _WORKSPACE_LINE = re.compile(r"^- (.+?) \(.*\)$", re.MULTILINE)
 HOST_TOOLS = tuple(tool["name"] for tool in MEMORY_TOOLS)
 # Passages d'un appel de search_memory
 _MAX_MEMORY_RESULTS = 10
+# Échanges précédents lus pour comprendre une demande de mémorisation
+# (« retiens-le »), et longueur gardée de chacun
+_REMEMBER_CONTEXT_MESSAGES = 4
+_REMEMBER_CONTEXT_CHARS = 800
+# Attente, la réponse finie, de ce que le modèle retient d'un message sans demande
+# (au-delà du délai de MemoryReader)
+_READ_LATER_SECONDS = 70
+# Note [Mémoire] (core/code_memory.py) que le modèle recopiait parfois à la fin de
+# sa réponse : elle est pour lui, pas pour l'utilisateur. Il imite aussi le repère
+# devant une phrase à lui (« [Mémoire] J'ai retenu… ») : seul le repère part.
+_NOTE_TAG = "[Mémoire]"
+_NOTE_TAG_RE = re.compile(r"[ \t]*\[Mémoire\][ \t]*")
+# Début de la note qui, recopié après le repère, en fait une copie
+_NOTE_ECHO_CHARS = 60
 
 
 class CodeError(Exception):
@@ -137,6 +151,9 @@ class _Run:
         self.approvals: Dict[str, List[str]] = {}
         # Outils de cette réponse exécutés sur le PC (mémoire disponible)
         self.host_tools: set = set()
+        # Note [Mémoire] ajoutée au message pour le modèle : sa copie est retirée de
+        # la réponse (_without_note)
+        self.note = ""
 
 
 def _now() -> str:
@@ -146,6 +163,34 @@ def _now() -> str:
 def _clip(text: Any, limit: int) -> str:
     text = text if isinstance(text, str) else json.dumps(text, ensure_ascii=False, default=str)
     return text if len(text) <= limit else text[:limit] + "…"
+
+
+def _without_note(text: str, note: str = "") -> str:
+    """
+    La réponse sans la note [Mémoire] (note : celle donnée au modèle) qu'il y
+    recopie parfois, même en cours d'écriture : ce qui suit la copie part. Un
+    repère qu'il met devant une phrase à lui part seul, la phrase reste (sans
+    note, il l'imitait, et toute sa réponse disparaissait). Le début d'un repère
+    en cours d'écriture (« [Mé ») attend la suite.
+    """
+    text = text or ""
+    body = note[len(_NOTE_TAG):].strip() if note.startswith(_NOTE_TAG) else ""
+    position = 0
+    while True:
+        match = _NOTE_TAG_RE.search(text, position)
+        if match is None:
+            break
+        rest = text[match.end():]
+        if body and (body.startswith(rest.rstrip()) or rest.startswith(body[:_NOTE_ECHO_CHARS])):
+            return text[:match.start()].rstrip()
+        before = text[:match.start()]
+        text = before + (" " if before and rest and not before[-1].isspace() else "") + rest
+        position = len(before)
+    start = text.rfind("\n") + 1
+    tail = text[start:].lstrip()
+    if tail and _NOTE_TAG.startswith(tail):
+        return text[:start].rstrip()
+    return text
 
 
 def _display_input(data: Any) -> Dict[str, Any]:
@@ -495,9 +540,30 @@ class CodeHub:
             part["status"] = "running"
             self._emit("tool", {"message_id": run.message_id, **self._tool_view(part)})
 
+    def _forgotten(self, run: _Run, forgotten: Any) -> None:
+        """Fait retiré de la mémoire (« oublie que… », ou remplacé) : une carte, sur les
+        trois surfaces."""
+        project = project_name(forgotten.project) if forgotten.scope == SCOPE_PROJECT else ""
+        shown = {"fact": forgotten.fact, "scope": forgotten.scope}
+        if project:
+            shown["project"] = project
+        with self._lock:
+            if self._memory_view is not None:
+                # Le modèle le lit dans la note, ou dans le message qui le remplace : le
+                # prompt système n'a pas à changer
+                self._memory_view.setdefault("removed", []).append(forgotten.fact_id)
+            message = self._current_assistant(run)
+            if message is None:
+                return
+            part = {"kind": "tool", "call_id": f"memory_{uuid.uuid4().hex[:12]}",
+                    "name": "forget_fact", "input": _display_input(shown),
+                    "status": "completed", "output": tr("code.memory.forgotten"), "host": True}
+            message["parts"].append(part)
+            self._emit("tool", {"message_id": run.message_id, **self._tool_view(part)})
+
     def _remembered(self, run: _Run, remembered: Any) -> None:
-        """« Retiens que… » enregistré : une carte au début de la réponse, sur les trois
-        surfaces (l'information, pour quoi elle vaut, où la retrouver)."""
+        """Information retenue : une carte dans la réponse, sur les trois surfaces
+        (l'information, pour quoi elle vaut, où la retrouver)."""
         project = project_name(remembered.project) if remembered.scope == SCOPE_PROJECT else ""
         if not remembered.created:
             output = tr("code.memory.known")
@@ -552,10 +618,18 @@ class CodeHub:
         # Mémoire de My_AI (core/code_memory.py), si l'appli en a une
         memory = config.get("memory")
         roots = workspace_roots(run.link.workspace_info)
-        note, facts = "", None
+        note, facts, later = "", None, None
         if memory is not None:
             run.host_tools = set(HOST_TOOLS)
-            note = await self._remember(run, memory, text, roots)
+            if memory.asks(text):
+                # « Retiens… », « oublie… » : fait avant la réponse, qui le confirme
+                note = await self._update_memory(run, memory, text, roots, config)
+                run.note = note
+            elif text:
+                # Une préférence donnée en passant : lue pendant la réponse, sans la
+                # retarder, montrée à sa fin
+                later = asyncio.ensure_future(
+                    self._read_memory(run, memory, text, roots, config))
             try:
                 facts = await loop.run_in_executor(None, memory.facts, roots)
             except Exception as exc:  # pylint: disable=broad-except
@@ -599,11 +673,19 @@ class CodeHub:
                 on_tool_result=lambda call_id, result: self._tool_done(run, call_id, result),
                 workspace_info=run.link.workspace_info,
             )
+        except asyncio.CancelledError:
+            # Stop, Effacer (_settle s'en charge) : la mémoire lue en parallèle n'est
+            # pas écrite, aucune carte ne la montrerait
+            if later is not None:
+                later.cancel()
+            raise
         except Exception as exc:  # pylint: disable=broad-except
-            # (Stop, Effacer : CancelledError n'est pas une Exception, _settle s'en charge)
+            if later is not None:
+                later.cancel()
             logger.exception("Conversation Code : boucle agentique en échec (%s)", run.message_id)
             self._finish(run, tr("relay.agenticError", error=exc), "error")
             return
+        await self._show_later(run, later)
         self._finish(run, final_text, "done")
 
     def _resolve_llm(self) -> Optional[Dict[str, Any]]:
@@ -617,21 +699,80 @@ class CodeHub:
             logger.warning("Modèle de la conversation Code introuvable : %s", exc)
             return None
 
-    async def _remember(self, run: _Run, memory: Any, text: str, roots: List[str]) -> str:
-        """« Retiens que… » du message : enregistré, montré (carte), et la note qui le
-        dit au modèle ("" si le message ne le demande pas)."""
+    @staticmethod
+    def _llm_of(config: Dict[str, Any]) -> Dict[str, Any]:
+        """Le modèle de la conversation, pour lire ce qu'un message change dans la mémoire."""
+        return {key: config.get(key) for key in ("chat_url", "model", "num_ctx")}
+
+    async def _update_memory(self, run: _Run, memory: Any, text: str, roots: List[str],
+                             config: Dict[str, Any]) -> str:
+        """« Retiens que… », « retiens plutôt que… », « oublie que… » : ce que le modèle
+        de la conversation lit à retenir et à oublier (core/code_memory.py), fait,
+        montré (cartes) et dit au modèle par une note ("" : rien à lui dire)."""
         loop = asyncio.get_running_loop()
+        context = self._recent_exchanges(run)
+        llm = self._llm_of(config)
         try:
-            remembered = await loop.run_in_executor(None, memory.remember, text, roots)
+            update = await loop.run_in_executor(
+                None, lambda: memory.update(text, roots, context, llm, True))
         except Exception as exc:  # pylint: disable=broad-except
-            logger.warning("Conversation Code : rien de mémorisé (%s)", exc)
+            logger.warning("Conversation Code : mémoire inchangée (%s)", exc)
             return ""
-        if remembered is None:
+        if update is None:
             return ""
-        logger.info("Conversation Code : 🧠 mémorisé pour %s : %s",
-                    remembered.where(), remembered.fact[:80])
-        self._remembered(run, remembered)
-        return remembered.prompt_note()
+        self._show_update(run, update)
+        return update.prompt_note()
+
+    async def _read_memory(self, run: _Run, memory: Any, text: str, roots: List[str],
+                           config: Dict[str, Any]) -> Any:
+        """Message sans demande : la préférence durable que le modèle de la conversation
+        en retient (core/code_memory.py), lue pendant la réponse ; rien n'est écrit si
+        elle s'est arrêtée entre-temps (aucune carte ne le montrerait)."""
+        loop = asyncio.get_running_loop()
+        llm = self._llm_of(config)
+        return await loop.run_in_executor(
+            None, lambda: memory.update(text, roots, (), llm, False,
+                                        lambda: not run.finished))
+
+    async def _show_later(self, run: _Run, later: Any) -> None:
+        """Ce que le modèle a retenu d'un message sans demande : des cartes à la fin de
+        la réponse."""
+        if later is None:
+            return
+        try:
+            update = await asyncio.wait_for(later, timeout=_READ_LATER_SECONDS)
+        except Exception as exc:  # pylint: disable=broad-except
+            logger.warning("Conversation Code : mémoire non lue (%r)", exc)
+            return
+        if update is not None:
+            self._show_update(run, update)
+
+    def _show_update(self, run: _Run, update: Any) -> None:
+        """Les cartes de ce qu'un message a changé dans la mémoire : ce qui part, puis
+        ce qui est retenu."""
+        for forgotten in update.forgotten:
+            logger.info("Conversation Code : 🧠 oublié : %s", forgotten.fact[:80])
+            self._forgotten(run, forgotten)
+        for remembered in update.remembered:
+            logger.info("Conversation Code : 🧠 mémorisé pour %s%s : %s", remembered.where(),
+                        "" if update.asked else " (sans demande)", remembered.fact[:80])
+            self._remembered(run, remembered)
+        if update.asked and not update.changed:
+            logger.info("Conversation Code : demande de mémoire sans effet")
+
+    def _recent_exchanges(self, run: _Run) -> List[Tuple[str, str]]:
+        """Derniers échanges avant ce message, en texte (sans outils ni notes) : de quoi
+        comprendre « retiens-le » (CodeMemory.update)."""
+        with self._lock:
+            earlier = [message for message in self._messages
+                       if message.get("message_id") != run.message_id]
+        exchanges = []
+        for message in earlier[-_REMEMBER_CONTEXT_MESSAGES:]:
+            text = str(message.get("text") or "").strip()
+            if text:
+                who = "Utilisateur" if message.get("role") == "user" else "Assistant"
+                exchanges.append((who, _clip(text, _REMEMBER_CONTEXT_CHARS)))
+        return exchanges
 
     def _prepare_history(
         self, link: VSCodeLink, config: Dict[str, Any], memory: Any = None,
@@ -673,7 +814,8 @@ class CodeHub:
                 total -= len(str(history.pop(1).get("content") or ""))
                 trimmed = True
             view = self._memory_view
-            if trimmed and view and view.get("added") and facts is not None:
+            if trimmed and view and (view.get("added") or view.get("removed")) \
+                    and facts is not None:
                 # Le début de la conversation part (Ollama relit tout de toute façon) :
                 # les faits qu'elle a retenus, dont les notes [Mémoire] ont pu partir
                 # avec lui, rejoignent le prompt système
@@ -690,24 +832,28 @@ class CodeHub:
 
         Celui en place reste tant que le reste du prompt (base) ne change pas et
         que les faits qu'il montre sont ceux de la mémoire, à ceux près que la
-        conversation a retenus depuis : le modèle les a lus dans l'historique (note
-        [Mémoire] de leur message), et refaire le prompt ferait tout relire à
-        Ollama. Un fait modifié ou supprimé dans la fenêtre Mémoire, ou retenu
-        ailleurs, le refait. Faits illisibles (facts None) : celui en place reste.
+        conversation a retenus ou oubliés depuis : le modèle l'a lu dans
+        l'historique (note [Mémoire] de leur message, ou le message lui-même), et
+        refaire le prompt ferait tout relire à Ollama. Un fait modifié ou supprimé
+        dans la fenêtre Mémoire, ou retenu ailleurs, le refait. Faits illisibles
+        (facts None) : celui en place reste.
         """
         view = self._memory_view
         if current is not None and view is not None and view.get("base") == base:
             if facts is None:
                 return current
             added = set(view.get("added") or [])
-            if _without(_signature(facts), added) == _without(view.get("facts") or [], added):
+            gone = added | set(view.get("removed") or [])
+            if _without(_signature(facts), added) == _without(view.get("facts") or [], gone):
                 return current
         facts = facts or []
-        self._memory_view = {"base": base, "facts": _signature(facts), "added": []}
+        self._memory_view = {"base": base, "facts": _signature(facts), "added": [],
+                             "removed": []}
         return build(memory.prompt_block(roots, facts))
 
     def _chunk(self, run: _Run, text: str, segment: int) -> None:
         """Texte d'une passe du modèle (fil du streaming) : en entier, à sa place."""
+        text = _without_note(text, run.note)
         with self._lock:
             message = self._current_assistant(run)
             if message is None:
@@ -742,11 +888,19 @@ class CodeHub:
             self._finish(run, self._partial_text(run), "done")
 
     def _finish(self, run: _Run, text: str, status: str) -> None:
+        text = _without_note(text, run.note)
         with self._lock:
             if run.finished:
                 return
             run.finished = True
             run.approvals.clear()
+            history = self._llm_history
+            if history and history[-1].get("role") == "assistant":
+                # Recopiée dans l'historique, le modèle la recopierait de nouveau
+                said = str(history[-1].get("content") or "")
+                cleaned = _without_note(said, run.note)
+                if cleaned != said:
+                    history[-1] = {**history[-1], "content": cleaned}
             if self._active is run:
                 self._active = None
             if run.discarded:

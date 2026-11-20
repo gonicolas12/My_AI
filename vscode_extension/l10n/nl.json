@@ -60,6 +60,7 @@
   "Opening {target}": "{target} openen",
   "Searching memory for “{target}”": "Zoeken naar ‘{target}’ in het geheugen",
   "Remembered: {target}": "Onthouden: {target}",
+  "Forgotten: {target}": "Vergeten: {target}",
   "Input": "Argumenten",
   "Output": "Resultaat",
   "(empty)": "(leeg)",

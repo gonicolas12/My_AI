@@ -5,6 +5,24 @@ All notable changes to the **My_AI Relay** VS Code extension are documented here
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.7.4] — 2026-11-20
+
+My_AI's memory can forget, and keeps what you say in passing.
+
+### Added
+- **Forgotten cards.** "Forget that…", "remember instead that…", typed in the
+  Code conversation (here, on the PC or on the phone), remove a fact from
+  My_AI's memory or replace it; a **Forgotten** card shows each fact removed.
+  With an older extension, the card shows under its raw name (`forget_fact`).
+
+### Notes
+- Needs a host updated since 2026-11-20. There, the model of the conversation
+  works out what to remember ("remember it for all my projects" extends the
+  fact you just had it remember), and it keeps a lasting preference you state
+  without "remember" ("I always use black"), shown by a **Remembered** card at
+  the end of the reply. Only what you type counts, never a file of the
+  workspace or a tool result.
+
 ## [1.7.3] — 2026-11-20
 
 Text only: the README and the 1.7.2 notes catch up with what 1.7.2

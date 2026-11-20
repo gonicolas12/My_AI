@@ -751,6 +751,7 @@ function getWebviewStrings(): Record<string, string> {
     'code.tool.open_file': t('Opening {target}'),
     'code.tool.search_memory': t('Searching memory for “{target}”'),
     'code.tool.remember_fact': t('Remembered: {target}'),
+    'code.tool.forget_fact': t('Forgotten: {target}'),
     'code.tool.input': t('Input'),
     'code.tool.output': t('Output'),
     'code.tool.empty': t('(empty)'),

@@ -473,8 +473,9 @@ workspaces:
 # ====================================
 knowledge_base:
   directory: "data/knowledge_base"
-  # Mémorisation depuis le chat : « retiens que… » (et l'outil remember_fact
-  # du modèle) ajoute le fait à la fenêtre 🧠 Mémoire. false = ajout manuel seulement.
+  # Mémorisation depuis les conversations (chat, conversation Code) : « retiens
+  # que… », « oublie que… », et ce que l'utilisateur dit de durable sans le
+  # demander, dans la fenêtre 🧠 Mémoire. false = ajout manuel seulement.
   auto_extract: true
   max_facts: 10000
 

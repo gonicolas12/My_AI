@@ -146,6 +146,7 @@
   "code.tool.open_file": "Opening {target}",
   "code.tool.search_memory": "Searching memory for “{target}”",
   "code.tool.remember_fact": "Remembered: {target}",
+  "code.tool.forget_fact": "Forgotten: {target}",
   "code.tool.input": "Input",
   "code.tool.output": "Output",
   "code.tool.empty": "(empty)",

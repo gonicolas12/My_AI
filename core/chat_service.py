@@ -241,6 +241,7 @@ def tool_label(tool_name: str, args: Dict[str, Any]) -> str:
         "web_search": {"query": args.get("query", "")},
         "search_memory": {},
         "remember_fact": {"fact": args.get("fact", "")},
+        "forget_fact": {"fact": args.get("fact", "")},
         "read_local_file": {"path": args.get("path", "")},
         "list_directory": {"path": args.get("path", ".")},
         "generate_code": {"language": args.get("language", "")},
@@ -1074,6 +1075,9 @@ class ChatService:
                 on_document=lambda path: self._on_document(turn, path),
                 on_tool_result=lambda name, args, result: self._on_tool_result(
                     turn, name, args, result),
+                # Une commande « /… » déroulée : la mémoire ne lit pas le prompt de
+                # la bibliothèque comme si c'étaient ses mots
+                memory_text=None if user_text == request.text else "",
             )
             # Réponse non streamée (repli sans Ollama) : affichée d'un bloc
             if not self._is_stale(request) and not turn.text and response:
@@ -1286,12 +1290,16 @@ class ChatService:
             self._turn = None
 
         if request.source == "mobile":
+            # Ce que la réponse a retenu ou oublié : sous sa bulle, sur le téléphone
+            notes = [tool["label"] for tool in turn.tools
+                     if tool.get("name") in ("remember_fact", "forget_fact")]
             if interrupted and turn.kind == "chat":
                 self._relay_submit_response(
-                    request, (text + "\n\n" + tr(INTERRUPTED_SUFFIX)) if text else tr(INTERRUPTED_EMPTY)
+                    request, (text + "\n\n" + tr(INTERRUPTED_SUFFIX)) if text else tr(INTERRUPTED_EMPTY),
+                    notes,
                 )
             else:
-                self._relay_submit_response(request, text or tr(INTERRUPTED_EMPTY))
+                self._relay_submit_response(request, text or tr(INTERRUPTED_EMPTY), notes)
 
     def _ollama_tokens_per_s(self, turn: _Turn) -> Optional[float]:
         """Vitesse d'écriture relevée par Ollama sur le dernier flux de la réponse (D15).
@@ -2460,7 +2468,10 @@ class ChatService:
             except Exception as exc:  # pylint: disable=broad-except
                 logger.warning("Image du mobile illisible (%s) : %s", request.image_path, exc)
 
-    def _relay_submit_response(self, request: _Request, text: str) -> None:
+    def _relay_submit_response(self, request: _Request, text: str,
+                               memory_notes: Optional[List[str]] = None) -> None:
+        """Réponse au téléphone ; memory_notes : ce qu'elle a retenu ou oublié
+        (« 🧠 Mémorisé : … »), montré sous sa bulle comme dans la fenêtre."""
         if request.source != "mobile" or not self._bridge_active():
             return
         # Fichiers cités ou nommés par la réponse : cliquables sur le téléphone
@@ -2469,7 +2480,7 @@ class ChatService:
             links = self._answer_links(text)
         try:
             self._bridge.submit_ai_response(text, message_id=request.relay_message_id,
-                                            links=links)
+                                            links=links, memory_notes=memory_notes or [])
         except Exception as exc:  # pylint: disable=broad-except
             logger.warning("Envoi de la réponse au mobile échoué : %s", exc)
 

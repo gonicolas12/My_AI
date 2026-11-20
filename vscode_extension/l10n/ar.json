@@ -60,6 +60,7 @@
   "Opening {target}": "فتح {target}",
   "Searching memory for “{target}”": "البحث عن «{target}» في الذاكرة",
   "Remembered: {target}": "تم الحفظ: {target}",
+  "Forgotten: {target}": "تم النسيان: {target}",
   "Input": "المعطيات",
   "Output": "النتيجة",
   "(empty)": "(فارغ)",
