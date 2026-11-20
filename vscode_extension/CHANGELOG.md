@@ -19,7 +19,7 @@ The Code conversation shows what My_AI's memory does.
   not in the extension, which now draws their cards as well.
 
 ### Notes
-- The cards need a host updated since 2026-11-20 (My_AI after 9.2.0).
+- The cards need a host updated since 2026-11-20 (My_AI 9.2.0 from that day on).
   With an older host, the extension works as 1.7.1 did. With an older
   extension, the memory works the same, but its cards only show once the
   view is reloaded, under their raw names.
