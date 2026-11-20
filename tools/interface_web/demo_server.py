@@ -115,7 +115,10 @@ sys.path.insert(0, str(ROOT / "tests"))
 # pylint: disable=wrong-import-position,wrong-import-order,import-error
 from fastapi import Request  # noqa: E402
 from core.chat_service import ChatService  # noqa: E402
+from core.code_memory import CodeMemory  # noqa: E402
 from core.i18n import tr  # noqa: E402
+from core.knowledge_base_manager import (  # noqa: E402
+    SCOPE_CHAT, SCOPE_CODE, SCOPE_PROJECT, KnowledgeBaseManager, fact_scope, same_project)
 from core.memory_store import MemoryStore, document_key  # noqa: E402
 from core.prompt_library import PromptLibrary  # noqa: E402
 from core.scheduler import SchedulerService  # noqa: E402
@@ -755,6 +758,62 @@ class DemoMemoryStore:  # pylint: disable=too-many-instance-attributes
                 "conversations": len(self.entries("conversation"))}
 
 
+class DemoKnowledgeBase(KnowledgeBaseManager):
+    """Faits de la démonstration (DemoMemoryStore) lus comme ceux de la base SQLite :
+    la mémoire de la conversation Code (core/code_memory.py) s'en sert telle quelle,
+    et un « retiens que… » paraît dans le panneau Mémoire."""
+
+    def __init__(self, store):  # pylint: disable=super-init-not-called
+        self.store = store
+
+    def get_all_facts(self, category=None):
+        with self.store.lock:
+            return [dict(fact) for fact in self.store.facts
+                    if not category or fact["category"] == category]
+
+    def remember(self, value, category="general", source="conversation",
+                 scope=SCOPE_CHAT, project=""):
+        wanted = value.strip().rstrip(" .!").casefold()
+        for fact in self.get_all_facts():
+            current, folder = fact_scope(fact)
+            if fact["value"].strip().rstrip(" .!").casefold() != wanted:
+                continue
+            if current == SCOPE_CODE or (current == scope and (
+                    scope != SCOPE_PROJECT or same_project(folder, project))):
+                return fact["id"], False
+        return self.add(value, category, source, scope, project), True
+
+    def add(self, value, category="general", source="code", scope=SCOPE_CODE, project=""):
+        """Fait ajouté à la mémoire de la démonstration, avec sa portée."""
+        now = time.strftime("%Y-%m-%dT%H:%M:%S")
+        with self.store.lock:
+            return self.store._add({  # pylint: disable=protected-access
+                "category": category, "key": value.split("\n", 1)[0][:80], "value": value,
+                "source": source, "updated_at": now, "scope": scope,
+                "project": project if scope == SCOPE_PROJECT else ""})
+
+
+def demo_memory_search(kb, store):
+    """search_memory de la démonstration : les faits donnés, puis les passages des
+    documents fictifs qui partagent un mot avec la requête."""
+    def search(query, n_results=5, _document="", facts=None, recent=None):
+        parts = []
+        found = kb.search_text(query, n_results, facts=facts, recent=recent)
+        if found:
+            parts.append(found)
+        words = {word for word in re.findall(r"\w{4,}", query.casefold())}
+        passages = [doc for doc in store.documents
+                    if words & set(re.findall(r"\w{4,}", doc["content"].casefold()))][:n_results]
+        if passages:
+            parts.append("Documents indexés (extraits, chacun sous le nom de son document, son "
+                         "dossier éventuel et sa date d'ajout) :\n" + "\n\n".join(
+                             f"[{index}] « {doc['metadata']['document_name']} » — ajouté le "
+                             f"08/10/2026 à 14:30\n{doc['content']}"
+                             for index, doc in enumerate(passages, 1)))
+        return "\n\n".join(parts) or "Aucun résultat dans la mémoire."
+    return search
+
+
 class DemoEngine(FakeEngine):  # pylint: disable=too-many-instance-attributes
     """Moteur scénarisé, à vitesse réaliste."""
 
@@ -1275,7 +1334,9 @@ class DemoCodeExecutor:
     « modifie » / « écris » : lecture puis modification d'un fichier (approbation) ;
     « teste » / « commande » : commande shell (approbation) ; « erreur » : échec ;
     « attends » : réponse lente, pour le Stop ; « aperçu » : fichiers du workspace cités,
-    pièces jointes nommées, page HTML ; autre : lecture d'un fichier, puis réponse."""
+    pièces jointes nommées, page HTML ; « retiens que… » : confirmation seule (le hub a
+    enregistré et montré la carte) ; « mémoire » : search_memory, exécuté sur le PC ;
+    autre : lecture d'un fichier, puis réponse."""
 
     RATE = 40.0  # fragments par seconde
 
@@ -1303,6 +1364,23 @@ class DemoCodeExecutor:
         if "erreur" in message:
             await self._stream("Je lance la recherche…", 0, run["on_chunk"])
             raise RuntimeError("Ollama ne répond pas (démo)")
+        if "[mémoire]" in message:
+            # « Retiens que… » : enregistré par le hub, la note le dit au modèle
+            example = re.search(r"par exemple : « (.+?) »\)", run["user_message"])
+            final = example.group(1) if example else "C'est noté."
+            await self._stream(final, 0, run["on_chunk"])
+            run["history"].append({"role": "assistant", "content": final})
+            return final
+        if "mémoire" in message:
+            intro = "Je regarde dans ta mémoire."
+            await self._stream(intro, 0, run["on_chunk"])
+            await self._tool(run, "search_memory", {"query": "calendrier du projet"})
+            final = ("D'après la **note de projet** que tu as mise en mémoire : maquettes en juin, "
+                     "chat et barre latérale en juillet, panneaux en septembre.")
+            await self._stream(final, 1, run["on_chunk"])
+            text = f"{intro}\n\n{final}"
+            run["history"].append({"role": "assistant", "content": text})
+            return text
         segments = []
         intro = "Je regarde d'abord `src/app.py`."
         await self._stream(intro, 0, run["on_chunk"])
@@ -1809,11 +1887,21 @@ class DemoApp(DesktopApp):  # pylint: disable=too-few-public-methods
                 threading.Thread(target=loop.run_forever, name="demo-code", daemon=True).start()
                 hub = CodeHub(store=self._workspaces.parent / "code_conversation.json",
                               executor_factory=DemoCodeExecutor)
+                folder = self._workspaces.parent / "demo-api"
+                # Mémoire de la conversation Code : les faits de la démonstration, et
+                # deux retenus pour le code (l'un pour ce projet, l'autre pour tous)
+                store = self.engine.memory_store
+                kb = DemoKnowledgeBase(store)
+                kb.add("Les routes de l'API renvoient des listes paginées par 20",
+                       category="technical", scope=SCOPE_PROJECT, project=str(folder))
+                kb.add("J'écris les docstrings en français", category="preference")
+                memory = CodeMemory(kb, search=demo_memory_search(kb, store))
                 hub.set_llm_resolver(lambda: {
                     "chat_url": "demo", "model": "my_ai", "num_ctx": 32768,
                     "describe_image": lambda _image, _question: "Capture d'une page web (démo).",
+                    "memory": memory,
                 })
-                workspace = demo_workspace(self._workspaces.parent / "demo-api")
+                workspace = demo_workspace(folder)
                 # pylint: disable-next=attribute-defined-outside-init
                 self._demo_vscode = DemoVSCode(hub, loop, workspace)
                 self._code = CodeService(hub, self.bus.publish, lambda: self.bus.last_seq)

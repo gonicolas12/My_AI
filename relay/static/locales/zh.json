@@ -143,6 +143,8 @@
   "code.tool.run_command": "命令：{target}",
   "code.tool.get_active_editor": "VS Code 中打开的文件",
   "code.tool.open_file": "打开 {target}",
+  "code.tool.search_memory": "在记忆中搜索“{target}”",
+  "code.tool.remember_fact": "已记住：{target}",
   "code.tool.input": "参数",
   "code.tool.output": "结果",
   "code.tool.empty": "（空）",

@@ -746,12 +746,13 @@ class AIEngine:
     }
 
     def _memory_reply_language(self) -> Optional[str]:
-        """Langue de réponse imposée par la mémoire (la consigne la plus récente), ou None."""
+        """Langue de réponse imposée par la mémoire du chat (la consigne la plus
+        récente), ou None : celle retenue pour un projet de code reste au code."""
         kb = getattr(self, "knowledge_base", None)
         if not _KB_AVAILABLE or kb is None:
             return None
         try:
-            facts = sorted(kb.get_all_facts(), key=lambda f: f["updated_at"], reverse=True)
+            facts = sorted(kb.chat_facts(), key=lambda f: f["updated_at"], reverse=True)
         except Exception as exc:
             self.logger.warning("Lecture base de connaissances indisponible: %s", exc)
             return None
@@ -2286,15 +2287,31 @@ Que voulez-vous que je fasse pour vous ?""",
 
     def _search_memory(self, query: str, n_results: int = 5, document: str = "") -> str:
         """
-        Outil search_memory : les faits mémorisés qui partagent des mots avec
-        la requête, puis les passages les plus proches des documents indexés,
-        groupés par document sous leur libellé (nom ou chemin dans son dossier,
-        origine, date d'ajout) : deux documents du même nom ne se confondent pas.
+        Outil search_memory du chat : les faits mémorisés qui partagent des mots
+        avec la requête (de toutes les portées, celles du code nommées), puis les
+        passages les plus proches des documents indexés, groupés par document
+        sous leur libellé (nom ou chemin dans son dossier, origine, date
+        d'ajout) : deux documents du même nom ne se confondent pas.
 
         Args:
             document: nom ou chemin d'un document de la mémoire (ou d'un dossier
                 déposé) pour ne chercher que dans celui-ci ; inconnu, toute la
                 mémoire est fouillée, et le modèle le sait
+        """
+        return self.search_memory(query, n_results, document)
+
+    def search_memory(self, query: str, n_results: int = 5, document: str = "",
+                      facts: Optional[List[Dict]] = None,
+                      recent: Optional[List[Dict]] = None) -> str:
+        """
+        Recherche de l'outil search_memory (voir _search_memory), du chat ou de
+        la conversation Code (core/code_memory.py).
+
+        Args:
+            facts: faits parmi lesquels chercher (par défaut tous) ; la
+                conversation Code passe ceux du chat, du code et de ses dossiers
+            recent: faits proposés quand aucun ne correspond (par défaut les
+                mêmes ; ceux du code seuls pour la conversation Code)
         """
         try:
             n_results = max(1, int(n_results))
@@ -2305,20 +2322,34 @@ Que voulez-vous que je fasse pour vous ?""",
         kb = getattr(self, "knowledge_base", None)
         if kb is not None:
             try:
-                facts = kb.select_facts(query, max_facts=n_results, include_recent=False)
-                header = "Faits mémorisés :"
-                if not facts:
-                    # « fait retenu par l'utilisateur » ne partage aucun mot avec
-                    # les faits : « Aucun résultat » faisait croire la mémoire vide
-                    facts = kb.select_facts(query, max_facts=n_results)
-                    header = "Aucun fait ne correspond exactement ; les plus récents :"
+                found = kb.search_text(query, n_results, facts=facts, recent=recent)
             except Exception as exc:
                 self.logger.warning("Recherche dans les faits indisponible : %s", exc)
-                facts = []
-            if facts:
-                parts.append(header + "\n" + "\n".join(kb.format_facts(facts)))
+                found = ""
+            if found:
+                parts.append(found)
 
+        documents, error = self._search_memory_documents(query, n_results, document)
+        if error is not None and not parts:
+            return f"Erreur mémoire : {error}"
+        parts.extend(documents)
+
+        if not parts:
+            return "Aucun résultat dans la mémoire (faits mémorisés et documents indexés)."
+        return "\n\n".join(parts)
+
+    def _search_memory_documents(
+        self, query: str, n_results: int, document: str
+    ) -> Tuple[List[str], Optional[str]]:
+        """
+        Moitié « documents » de search_memory : la note d'un document introuvable,
+        puis les passages les plus proches, groupés par document.
+
+        Returns:
+            (blocs de texte, erreur de la mémoire vectorielle ou None)
+        """
         where, note = self._memory_document_filter(document)
+        error = None
         try:
             # Résolution à l'appel (comme search_codebase) : construire la
             # VectorMemory dès l'enregistrement chargerait ChromaDB et le
@@ -2327,20 +2358,14 @@ Que voulez-vous que je fasse pour vous ?""",
             restrict = {"where": where} if where else {}
             results = self.get_vector_memory().search_similar(
                 query, n_results=n_results, **restrict)
-        except Exception as exc:
-            if not parts:
-                return f"Erreur mémoire : {exc}"
-            results = []
-        if note:
-            parts.append(note)
+        except Exception as exc:  # pylint: disable=broad-except
+            results, error = [], str(exc)
+        parts = [note] if note else []
         if results:
             parts.append(
                 "Documents indexés (extraits, chacun sous le nom de son document, son "
                 "dossier éventuel et sa date d'ajout) :\n" + results_block(results))
-
-        if not parts:
-            return "Aucun résultat dans la mémoire (faits mémorisés et documents indexés)."
-        return "\n\n".join(parts)
+        return parts, error
 
     def _memory_file_text(self, path: str) -> str:
         """

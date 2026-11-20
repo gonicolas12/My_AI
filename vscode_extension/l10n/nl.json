@@ -58,6 +58,8 @@
   "Command: {target}": "Opdracht: {target}",
   "File open in VS Code": "Bestand geopend in VS Code",
   "Opening {target}": "{target} openen",
+  "Searching memory for “{target}”": "Zoeken naar ‘{target}’ in het geheugen",
+  "Remembered: {target}": "Onthouden: {target}",
   "Input": "Argumenten",
   "Output": "Resultaat",
   "(empty)": "(leeg)",

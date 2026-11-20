@@ -835,6 +835,8 @@
   "code.tool.run_command": "أمر: {target}",
   "code.tool.get_active_editor": "الملف المفتوح في VS Code",
   "code.tool.open_file": "فتح {target}",
+  "code.tool.search_memory": "البحث عن «{target}» في الذاكرة",
+  "code.tool.remember_fact": "تم الحفظ: {target}",
   "code.tool.input": "المعطيات",
   "code.tool.output": "النتيجة",
   "code.tool.empty": "(فارغ)",

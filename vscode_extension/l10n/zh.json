@@ -58,6 +58,8 @@
   "Command: {target}": "命令：{target}",
   "File open in VS Code": "VS Code 中打开的文件",
   "Opening {target}": "打开 {target}",
+  "Searching memory for “{target}”": "在记忆中搜索“{target}”",
+  "Remembered: {target}": "已记住：{target}",
   "Input": "参数",
   "Output": "结果",
   "(empty)": "（空）",

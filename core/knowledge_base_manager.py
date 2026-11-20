@@ -2,15 +2,19 @@
 Gestionnaire de base de connaissances structurée pour My_AI.
 Stocke des faits éditables (noms, décisions, préférences, procédures)
 extraits des conversations ou ajoutés manuellement.
+
+Chaque fait a une portée : la conversation qui le reçoit d'office dans son
+prompt. Les autres le trouvent à la demande (outil search_memory).
 """
 
+import os
 import re
 import sqlite3
 import threading
 import unicodedata
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, Iterable, List, Optional, Tuple
 
 from utils.logger import setup_logger
 
@@ -24,6 +28,65 @@ VALID_CATEGORIES = (
     "technical",
     "general",
 )
+
+# Portées d'un fait. « chat » : le chat (fenêtre, téléphone), comme tous les
+# faits d'avant les portées. « code » : la conversation Code (VS Code, page Code,
+# vue Code du téléphone), quel que soit le dossier ouvert. « project » : la
+# conversation Code quand ce dossier (colonne project, son chemin) est ouvert
+# dans VS Code. Dix conventions de code retenues depuis VS Code chassaient sinon
+# du prompt du chat les faits sur l'utilisateur, et ses faits personnels
+# finissaient dans les fichiers écrits par le modèle.
+SCOPE_CHAT = "chat"
+SCOPE_CODE = "code"
+SCOPE_PROJECT = "project"
+SCOPES = (SCOPE_CHAT, SCOPE_CODE, SCOPE_PROJECT)
+
+
+def same_project(first: str, second: str) -> bool:
+    """Deux chemins désignent-ils le même dossier (casse de Windows, séparateur final) ?"""
+    if not first or not second:
+        return False
+    return (os.path.normcase(os.path.normpath(first))
+            == os.path.normcase(os.path.normpath(second)))
+
+
+def project_name(project: str) -> str:
+    """Nom affiché d'un projet : celui de son dossier."""
+    path = os.path.normpath(project) if project else ""
+    return os.path.basename(path) or path
+
+
+def _checked_scope(scope: Optional[str], project: Optional[str]) -> Tuple[str, str]:
+    """(portée, dossier) d'un fait ; le dossier n'a de sens que pour un projet.
+
+    Raises:
+        ValueError: Portée inconnue, ou fait de projet sans son dossier.
+    """
+    scope = (scope or SCOPE_CHAT).lower().strip()
+    if scope not in SCOPES:
+        raise ValueError(f"Portée invalide '{scope}'. Portées acceptées : {', '.join(SCOPES)}")
+    if scope != SCOPE_PROJECT:
+        return scope, ""
+    project = str(project or "").strip()
+    if not project:
+        raise ValueError("Un fait de projet doit nommer son dossier")
+    return scope, os.path.normpath(project)
+
+
+def fact_scope(fact: Dict) -> Tuple[str, str]:
+    """(portée, dossier) d'un fait lu en base ; un fait d'avant les portées est du chat."""
+    scope = str(fact.get("scope") or SCOPE_CHAT)
+    return scope, str(fact.get("project") or "") if scope == SCOPE_PROJECT else ""
+
+
+def scope_note(fact: Dict) -> str:
+    """Portée d'un fait pour le modèle, entre parenthèses après lui ("" pour le chat)."""
+    scope, project = fact_scope(fact)
+    if scope == SCOPE_CODE:
+        return "pour tous ses projets de code"
+    if scope == SCOPE_PROJECT:
+        return f"pour son projet de code « {project_name(project)} »"
+    return ""
 
 _QUERY_STOPWORDS = {
     "qui", "que", "quoi", "quand", "ou", "où", "comment", "pourquoi",
@@ -527,12 +590,22 @@ _POLITENESS_SENTENCE_RE = re.compile(
 # Autre demande après l'information (« Retiens que je débute. Explique-moi… »).
 # Coupe une information introduite par « que », pas un bloc « ceci : … »,
 # qui peut décrire une procédure (« lance build.bat. Vérifie les logs »).
+# Les verbes du code en sont (« Retiens que j'utilise des f-strings. Ensuite,
+# ajoute une fonction… ») : sans eux, la tâche entière était retenue, et le
+# modèle, à qui l'on disait que le message ne demandait rien d'autre, ne la
+# faisait pas, ou prétendait l'avoir faite.
 _REQUEST_START_RE = re.compile(
-    r"^(?:(?:et|maintenant|puis|ensuite|alors)[\s,]+)?"
-    r"(?:(?:peux|pourrais|veux|voudrais)[- ]tu|"
+    r"^(?:(?:et|maintenant|puis|ensuite|alors|then|now|next|and|also)[\s,]+)?"
+    r"(?:(?:peux|pourrais|veux|voudrais)[- ]tu|(?:can|could|would|will)\s+you|"
     r"(?:explique|dis|donne|[ée]cris|fais|montre|cr[ée]e|g[ée]n[èe]re|aide|trouve|"
-    r"cherche|liste|r[ée]sume|traduis|calcule|propose|r[ée]dige|corrige)"
-    r"(?:[- ](?:moi|nous|le|la|les))?)\b",
+    r"cherche|liste|r[ée]sume|traduis|calcule|propose|r[ée]dige|corrige|"
+    r"ajoute|modifie|impl[ée]mente|supprime|enl[èe]ve|retire|renomme|remplace|d[ée]place|"
+    r"lance|ex[ée]cute|teste|v[ée]rifie|analyse|regarde|lis|ouvre|installe|refactorise|"
+    r"optimise|documente|commente|mets|"
+    r"explain|tell|give|write|make|show|create|generate|help|find|search|list|"
+    r"summari[sz]e|translate|fix|add|implement|update|change|remove|delete|rename|"
+    r"replace|move|run|test|check|read|open|install|refactor)"
+    r"(?:[- ](?:moi|nous|le|la|les|me))?)\b",
     re.IGNORECASE,
 )
 # Politesse en fin d'information (« … Félix, stp »). « ok » seulement après
@@ -750,7 +823,11 @@ class KnowledgeBaseManager:
         return self._local.connection
 
     def _init_db(self) -> None:
-        """Crée le schéma de la base de données si nécessaire."""
+        """Crée le schéma de la base de données si nécessaire.
+
+        Une base d'avant les portées reçoit leurs colonnes : ses faits sont
+        ceux du chat, qui les recevait tous.
+        """
         conn = self._get_connection()
         conn.executescript(
             """
@@ -762,13 +839,27 @@ class KnowledgeBaseManager:
                 source      TEXT    NOT NULL DEFAULT 'manual',
                 confidence  REAL    NOT NULL DEFAULT 1.0,
                 created_at  TEXT    NOT NULL,
-                updated_at  TEXT    NOT NULL
+                updated_at  TEXT    NOT NULL,
+                scope       TEXT    NOT NULL DEFAULT 'chat',
+                project     TEXT    NOT NULL DEFAULT ''
             );
 
             CREATE INDEX IF NOT EXISTS idx_facts_category ON facts(category);
             CREATE INDEX IF NOT EXISTS idx_facts_key      ON facts(key);
             """
         )
+        columns = {row["name"] for row in conn.execute("PRAGMA table_info(facts)")}
+        for name in ("scope", "project"):
+            if name in columns:
+                continue
+            default = SCOPE_CHAT if name == "scope" else ""
+            try:
+                conn.execute(f"ALTER TABLE facts ADD COLUMN {name} TEXT NOT NULL DEFAULT '{default}'")
+            except sqlite3.OperationalError as exc:
+                # Ajoutée entre-temps par une autre instance (même base, même processus)
+                if "duplicate column" not in str(exc).lower():
+                    raise
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_facts_scope ON facts(scope)")
         conn.commit()
 
     # ------------------------------------------------------------------
@@ -783,6 +874,8 @@ class KnowledgeBaseManager:
         source: str = "manual",
         confidence: float = 1.0,
         content: Optional[str] = None,
+        scope: str = SCOPE_CHAT,
+        project: str = "",
     ) -> int:
         """
         Ajoute un fait dans la base de connaissances.
@@ -794,12 +887,14 @@ class KnowledgeBaseManager:
             source:     Origine du fait (manual, conversation, ...).
             confidence: Niveau de confiance entre 0.0 et 1.0.
             content:    Alias rétrocompatible de value (ancienne API).
+            scope:      Portée (SCOPES) : conversation qui le reçoit d'office.
+            project:    Dossier d'un fait de projet (scope « project »).
 
         Returns:
             Identifiant du fait créé.
 
         Raises:
-            ValueError: Si la catégorie est invalide ou la confiance hors bornes.
+            ValueError: Si la catégorie ou la portée est invalide, ou la confiance hors bornes.
         """
         category = category.lower().strip()
         if category not in VALID_CATEGORIES:
@@ -809,6 +904,7 @@ class KnowledgeBaseManager:
             )
         if not 0.0 <= confidence <= 1.0:
             raise ValueError("La confiance doit être comprise entre 0.0 et 1.0")
+        scope, project = _checked_scope(scope, project)
 
         # Rétrocompatibilité: ancienne API add_fact(category=..., content=...)
         if content is not None:
@@ -827,14 +923,15 @@ class KnowledgeBaseManager:
         conn = self._get_connection()
         cursor = conn.execute(
             """
-            INSERT INTO facts (category, key, value, source, confidence, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO facts (category, key, value, source, confidence, created_at, updated_at,
+                               scope, project)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (category, key.strip(), value.strip(), source, confidence, now, now),
+            (category, key.strip(), value.strip(), source, confidence, now, now, scope, project),
         )
         conn.commit()
         fact_id = cursor.lastrowid
-        logger.info("Fait ajouté [id=%d] catégorie=%s clé=%s", fact_id, category, key)
+        logger.info("Fait ajouté [id=%d] catégorie=%s portée=%s clé=%s", fact_id, category, scope, key)
         return fact_id
 
     def get_fact(self, key: str) -> Optional[Dict]:
@@ -960,24 +1057,33 @@ class KnowledgeBaseManager:
         value: str,
         category: str = "general",
         source: str = "conversation",
+        scope: str = SCOPE_CHAT,
+        project: str = "",
     ) -> Tuple[int, bool]:
         """
         Enregistre une information que l'utilisateur demande de retenir.
 
-        Sans doublon : si la même information existe déjà (casse, accents et
-        ponctuation finale ignorés), elle est rafraîchie au lieu d'être
-        recopiée. Une catégorie inconnue devient « general ».
+        Sans doublon : si la même information existe déjà pour cette portée,
+        ou pour tous les projets quand elle est retenue pour l'un d'eux (casse,
+        accents et ponctuation finale ignorés), elle est rafraîchie au lieu
+        d'être recopiée. Retenue pour tous les projets alors qu'elle l'était
+        pour certains, elle vaut désormais pour tous : un seul fait la garde.
+        Une catégorie inconnue devient « general ».
 
         Args:
             value:    L'information à retenir.
             category: Catégorie du fait.
-            source:   Origine (« conversation » pour le chat).
+            source:   Origine (« conversation » pour le chat, « code » pour la
+                      conversation Code).
+            scope:    Portée du fait (SCOPES).
+            project:  Dossier d'un fait de projet.
 
         Returns:
-            (identifiant du fait, True s'il vient d'être créé)
+            (identifiant du fait, True s'il vient d'être créé ou vaut
+            désormais pour tous les projets)
 
         Raises:
-            ValueError: Si la valeur est vide.
+            ValueError: Si la valeur est vide, ou la portée invalide.
         """
         value = (value or "").strip()
         if not value:
@@ -985,22 +1091,48 @@ class KnowledgeBaseManager:
         category = (category or "general").lower().strip()
         if category not in VALID_CATEGORIES:
             category = "general"
+        scope, project = _checked_scope(scope, project)
 
         wanted = _normalize(value).rstrip(" .!")
-        for fact in self.get_all_facts():
-            if _normalize(fact["value"]).rstrip(" .!") == wanted:
-                conn = self._get_connection()
-                conn.execute(
-                    "UPDATE facts SET updated_at = ? WHERE id = ?",
-                    (datetime.now().isoformat(), fact["id"]),
-                )
+        same = [fact for fact in self.get_all_facts()
+                if _normalize(fact["value"]).rstrip(" .!") == wanted]
+        now = datetime.now().isoformat()
+        conn = self._get_connection()
+        for fact in same:
+            if self._covers(fact, scope, project):
+                conn.execute("UPDATE facts SET updated_at = ? WHERE id = ?", (now, fact["id"]))
                 conn.commit()
                 logger.info("Fait déjà connu, rafraîchi [id=%d]", fact["id"])
                 return fact["id"], False
 
+        if scope == SCOPE_CODE:
+            narrower = [fact for fact in same if fact_scope(fact)[0] == SCOPE_PROJECT]
+            if narrower:
+                kept = max(narrower, key=lambda fact: fact["updated_at"])
+                conn.execute(
+                    "UPDATE facts SET scope = ?, project = '', updated_at = ? WHERE id = ?",
+                    (SCOPE_CODE, now, kept["id"]),
+                )
+                for fact in narrower:
+                    if fact["id"] != kept["id"]:
+                        conn.execute("DELETE FROM facts WHERE id = ?", (fact["id"],))
+                conn.commit()
+                logger.info("Fait d'un projet étendu à tous [id=%d]", kept["id"])
+                return kept["id"], True
+
         # Même clé que les faits ajoutés depuis la fenêtre Mémoire
         key = value.split("\n", 1)[0].strip()[:80]
-        return self.add_fact(category, key=key, value=value, source=source), True
+        return self.add_fact(category, key=key, value=value, source=source,
+                             scope=scope, project=project), True
+
+    @staticmethod
+    def _covers(fact: Dict, scope: str, project: str) -> bool:
+        """Le fait vaut-il déjà pour cette portée ? Un fait de tous les projets
+        vaut pour chacun d'eux."""
+        current, folder = fact_scope(fact)
+        if current == scope:
+            return scope != SCOPE_PROJECT or same_project(folder, project)
+        return current == SCOPE_CODE and scope == SCOPE_PROJECT
 
     # ------------------------------------------------------------------
     # Requêtes de lecture
@@ -1028,6 +1160,23 @@ class KnowledgeBaseManager:
                 "SELECT * FROM facts ORDER BY category, updated_at DESC"
             ).fetchall()
         return [dict(r) for r in rows]
+
+    def chat_facts(self) -> List[Dict]:
+        """Faits que le chat (fenêtre, téléphone) reçoit d'office : ceux de sa portée."""
+        return [fact for fact in self.get_all_facts() if fact_scope(fact)[0] == SCOPE_CHAT]
+
+    def code_facts(self, projects: Iterable[str] = ()) -> List[Dict]:
+        """Faits que la conversation Code reçoit d'office dans ces dossiers : ceux de
+        tous les projets, et ceux de l'un de ces dossiers, dans l'ordre où ils ont été
+        retenus."""
+        folders = [folder for folder in projects or () if folder]
+        facts = []
+        for fact in self.get_all_facts():
+            scope, project = fact_scope(fact)
+            if scope == SCOPE_CODE or (
+                    scope == SCOPE_PROJECT and any(same_project(project, f) for f in folders)):
+                facts.append(fact)
+        return sorted(facts, key=lambda fact: (fact["created_at"], fact["id"]))
 
     def get_categories(self) -> List[str]:
         """
@@ -1108,6 +1257,7 @@ class KnowledgeBaseManager:
         max_facts: int = 12,
         max_chars: int = 2500,
         include_recent: bool = True,
+        facts: Optional[Iterable[Dict]] = None,
     ) -> List[Dict]:
         """
         Choisit les faits à donner au modèle pour une requête.
@@ -1122,11 +1272,13 @@ class KnowledgeBaseManager:
             max_facts:      Nombre maximum de faits retenus.
             max_chars:      Taille maximale des lignes affichées (format_facts).
             include_recent: Compléter avec les faits récents sans mot commun.
+            facts:          Faits parmi lesquels choisir ; par défaut ceux du chat
+                            (chat_facts).
 
         Returns:
             Les faits retenus, du plus utile au moins utile.
         """
-        facts = self.get_all_facts()
+        facts = self.chat_facts() if facts is None else list(facts)
         wanted = set(self._match_tokens(query))
 
         relevant = []
@@ -1158,9 +1310,37 @@ class KnowledgeBaseManager:
         return selected
 
     @classmethod
-    def format_facts(cls, facts: List[Dict]) -> List[str]:
-        """Une ligne par fait, prête à placer dans un prompt."""
-        return [cls._fact_line(fact) for fact in facts]
+    def format_facts(cls, facts: List[Dict], with_scope: bool = False) -> List[str]:
+        """Une ligne par fait, prête à placer dans un prompt ; with_scope : la
+        portée d'un fait qui n'est pas du chat suit le fait (scope_note)."""
+        return [cls._fact_line(fact, with_scope) for fact in facts]
+
+    def search_text(self, query: str, n_results: int = 5,
+                    facts: Optional[Iterable[Dict]] = None,
+                    recent: Optional[Iterable[Dict]] = None) -> str:
+        """
+        Faits d'un appel de l'outil search_memory, chacun avec sa portée : ceux
+        qui partagent des mots avec la requête, sinon les plus récents (« fait
+        retenu par l'utilisateur » ne partage aucun mot avec eux : « Aucun
+        résultat » faisait croire la mémoire vide). "" sans aucun fait.
+
+        Args:
+            facts: Faits parmi lesquels chercher ; par défaut tous (le chat
+                trouve à la demande ceux du code).
+            recent: Faits proposés quand aucun ne correspond ; par défaut les
+                mêmes. La conversation Code n'y met pas ceux du chat : une
+                recherche de document y aurait ramené la vie de l'utilisateur.
+        """
+        pool = self.get_all_facts() if facts is None else list(facts)
+        found = self.select_facts(query, max_facts=n_results, include_recent=False, facts=pool)
+        header = "Faits mémorisés :"
+        if not found:
+            fallback = pool if recent is None else list(recent)
+            found = self.select_facts(query, max_facts=n_results, facts=fallback)
+            header = "Aucun fait ne correspond exactement ; les plus récents :"
+        if not found:
+            return ""
+        return header + "\n" + "\n".join(self.format_facts(found, with_scope=True))
 
     def get_context_for_prompt(self, query: str, max_facts: int = 5) -> str:
         """
@@ -1198,6 +1378,11 @@ class KnowledgeBaseManager:
         return is_assistant_fact(cls._fact_text(fact))
 
     @classmethod
+    def prompt_text(cls, fact: Dict) -> str:
+        """Le fait tel que le modèle doit le lire, sans catégorie ni portée (fact_for_prompt)."""
+        return fact_for_prompt(cls._fact_text(fact))
+
+    @classmethod
     def _fact_text(cls, fact: Dict) -> str:
         """Le fait, tronqué au-delà de _FACT_DISPLAY_CHARS, avec sa clé si elle informe."""
         value = str(fact.get("value", "")).strip()
@@ -1207,15 +1392,19 @@ class KnowledgeBaseManager:
         return f"{key}: {value}" if cls._key_adds_info(key, value) else value
 
     @classmethod
-    def _fact_line(cls, fact: Dict) -> str:
+    def _fact_line(cls, fact: Dict, with_scope: bool = False) -> str:
         """
-        « - [catégorie] fait », tel que le modèle doit le lire (fact_for_prompt).
+        « - [catégorie] fait », tel que le modèle doit le lire (fact_for_prompt) ;
+        with_scope : suivi de sa portée s'il n'est pas du chat.
 
         Un fait à la première personne passe à la troisième : nu dans le prompt
         système (« je suis Nicolas Gouy »), le modèle le prenait pour lui et
         répondait « Je suis Nicolas Gouy » à « qui je suis ? ».
         """
         line = f"- [{fact.get('category', 'general')}] {fact_for_prompt(cls._fact_text(fact))}"
+        note = scope_note(fact) if with_scope else ""
+        if note:
+            line += f" ({note})"
         try:
             confidence = float(fact.get("confidence", 1.0))
         except (TypeError, ValueError):

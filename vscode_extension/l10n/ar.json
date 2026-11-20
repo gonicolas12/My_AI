@@ -58,6 +58,8 @@
   "Command: {target}": "أمر: {target}",
   "File open in VS Code": "الملف المفتوح في VS Code",
   "Opening {target}": "فتح {target}",
+  "Searching memory for “{target}”": "البحث عن «{target}» في الذاكرة",
+  "Remembered: {target}": "تم الحفظ: {target}",
   "Input": "المعطيات",
   "Output": "النتيجة",
   "(empty)": "(فارغ)",

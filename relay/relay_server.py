@@ -39,6 +39,7 @@ import requests
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 from core import i18n
+from core.code_memory import code_memory_for
 from core.config import get_config
 from core.i18n import tr
 from utils.logger import setup_logger
@@ -2923,8 +2924,9 @@ def _resolve_ollama_for_agentic(server: "RelayServer") -> Optional[Dict[str, Any
     """Extrait l'URL Ollama, le modèle et la fenêtre de contexte de l'AIEngine du server.
 
     Retourne ``{"chat_url": str, "model": str, "num_ctx": int, "describe_image":
-    callable | None}`` (images jointes décrites par le modèle vision) ou ``None``
-    si rien d'utilisable n'est dispo (ex: moteur pas encore initialisé).
+    callable | None, "memory": CodeMemory | None}`` (images jointes décrites par
+    le modèle vision ; mémoire de My_AI, core/code_memory.py) ou ``None`` si
+    rien d'utilisable n'est dispo (ex: moteur pas encore initialisé).
     """
     engine = server.ai_engine
     if engine is None:
@@ -2948,7 +2950,8 @@ def _resolve_ollama_for_agentic(server: "RelayServer") -> Optional[Dict[str, Any
         # recharger le modèle par Ollama à chaque passage d'un mode à l'autre
         num_ctx = int(getattr(local_llm, "gen_num_ctx", 32768))
         return {"chat_url": str(chat_url), "model": str(model), "num_ctx": num_ctx,
-                "describe_image": getattr(local_llm, "describe_image", None)}
+                "describe_image": getattr(local_llm, "describe_image", None),
+                "memory": code_memory_for(engine)}
     except Exception as exc:
         logger.warning("Impossible de résoudre la config Ollama agentique : %s", exc)
         return None

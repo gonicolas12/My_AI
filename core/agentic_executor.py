@@ -14,7 +14,9 @@ flux mobile/GUI :
   avec un set d'outils dont l'EXÉCUTION est délégué à l'extension VS Code
   (lecture/écriture de fichiers, recherche, exécution de commandes, ...).
   Le LLM reste sur l'hôte, mais ne voit rien d'autre que le workspace VS
-  Code de l'utilisateur — sauf approbation explicite côté extension.
+  Code de l'utilisateur — sauf approbation explicite côté extension — et
+  la mémoire de My_AI (MEMORY_TOOLS, exécutés sur le PC par
+  relay/code_hub.py, et les faits retenus pour le code, core/code_memory.py).
 
 Le format d'invocation des outils est volontairement basé sur des balises
 texte (``<tool_use>{"name": "...", "input": {...}}</tool_use>``) plutôt que
@@ -161,6 +163,27 @@ AGENT_TOOLS: List[Dict[str, Any]] = [
     },
 ]
 
+# Outils exécutés sur le PC, pas dans l'extension (relay/code_hub.py) : la
+# mémoire de My_AI (core/code_memory.py), offerts quand elle est disponible
+MEMORY_TOOLS: List[Dict[str, Any]] = [
+    {
+        "name": "search_memory",
+        "description": (
+            "Cherche dans la mémoire de My_AI, sur le PC (pas dans le workspace) : ce "
+            "que l'utilisateur t'a demandé de retenir et les documents qu'il a mis dans "
+            "My_AI (cahiers des charges, notes, specs…). Utilise-le SEULEMENT quand il "
+            "parle de sa mémoire, d'un document qu'il t'a donné ou de quelque chose "
+            "qu'il t'a demandé de retenir. Pour chercher dans le code, utilise grep."
+        ),
+        "input_schema": {
+            "query": "string (ce que tu cherches)",
+            "document": "string optionnel (nom d'un document de la mémoire, pour ne "
+                        "chercher que dedans)",
+            "n_results": "int optionnel (nombre de passages, défaut 5)",
+        },
+    },
+]
+
 
 # ===========================================================================
 # Prompt système
@@ -192,7 +215,7 @@ l'autorise explicitement.
 
 # Workspace
 {workspace_info}
-
+{memory_section}
 # Outils disponibles
 
 {tools_doc}
@@ -256,17 +279,21 @@ def build_system_prompt(
     workspace_info: str,
     tools: Optional[List[Dict[str, Any]]] = None,
     language: Optional[str] = None,
+    memory: str = "",
 ) -> str:
     """Construit le prompt système complet à partir des infos de workspace et du set d'outils,
     suivi de la date du jour (core/modelfile.py : il change donc une fois par jour).
 
     ``language`` : langue de My_AI, celle des réponses à un message court ou
-    ambigu (français par défaut).
+    ambigu (français par défaut). ``memory`` : section « Mémoire »
+    (CodeMemory.prompt_block), entre le workspace et les outils.
     """
     if tools is None:
         tools = AGENT_TOOLS
+    memory = (memory or "").strip()
     return with_today(_SYSTEM_PROMPT_TEMPLATE.format(
         workspace_info=workspace_info or "(workspace inconnu)",
+        memory_section=f"\n# Mémoire\n\n{memory}\n" if memory else "",
         tools_doc=_format_tools_for_prompt(tools),
         default_language=_LANGUAGE_NAMES.get(language or "fr", "français"),
     ))
@@ -848,6 +875,7 @@ class AgenticExecutor:
 
 __all__ = [
     "AGENT_TOOLS",
+    "MEMORY_TOOLS",
     "AgenticExecutor",
     "RemoteToolExecutor",
     "build_system_prompt",

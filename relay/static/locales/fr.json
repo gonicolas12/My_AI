@@ -144,6 +144,8 @@
   "code.tool.run_command": "Commande : {target}",
   "code.tool.get_active_editor": "Fichier ouvert dans VS Code",
   "code.tool.open_file": "Ouverture de {target}",
+  "code.tool.search_memory": "Recherche de « {target} » dans la mémoire",
+  "code.tool.remember_fact": "Retenu : {target}",
   "code.tool.input": "Arguments",
   "code.tool.output": "Résultat",
   "code.tool.empty": "(vide)",

@@ -619,7 +619,8 @@ class CodeChunk(_Payload):
 
 
 class CodeTool(_Payload):
-    """Appel d'outil exécuté par l'extension, et son état ; options : approbation demandée."""
+    """Appel d'outil exécuté par l'extension, et son état ; options : approbation demandée ;
+    host : exécuté sur le PC (mémoire de My_AI : search_memory, « retiens que… »)."""
 
     message_id: str
     call_id: str
@@ -629,6 +630,7 @@ class CodeTool(_Payload):
                     "denied", "stopped"]
     output: Optional[str] = None
     options: Optional[List[Literal["allow-once", "allow-target", "allow-tool", "deny"]]] = None
+    host: bool = False
 
 
 class CodeDone(_Payload):

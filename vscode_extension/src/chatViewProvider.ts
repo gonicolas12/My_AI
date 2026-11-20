@@ -749,6 +749,8 @@ function getWebviewStrings(): Record<string, string> {
     'code.tool.run_command': t('Command: {target}'),
     'code.tool.get_active_editor': t('File open in VS Code'),
     'code.tool.open_file': t('Opening {target}'),
+    'code.tool.search_memory': t('Searching memory for “{target}”'),
+    'code.tool.remember_fact': t('Remembered: {target}'),
     'code.tool.input': t('Input'),
     'code.tool.output': t('Output'),
     'code.tool.empty': t('(empty)'),

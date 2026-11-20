@@ -146,6 +146,8 @@
   "code.tool.run_command": "Команда: {target}",
   "code.tool.get_active_editor": "Файл, открытый в VS Code",
   "code.tool.open_file": "Открытие {target}",
+  "code.tool.search_memory": "Поиск «{target}» в памяти",
+  "code.tool.remember_fact": "Запомнено: {target}",
   "code.tool.input": "Аргументы",
   "code.tool.output": "Результат",
   "code.tool.empty": "(пусто)",

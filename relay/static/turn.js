@@ -41,9 +41,12 @@
     'ban': '<circle cx="12" cy="12" r="10"/><path d="M4.929 4.929 19.07 19.071"/>',
     'octagon-x': '<path d="m15 9-6 6"/><path d="M2.586 16.726A2 2 0 0 1 2 15.312V8.688a2 2 0 0 1 .586-1.414l4.688-4.688A2 2 0 0 1 8.688 2h6.624a2 2 0 0 1 1.414.586l4.688 4.688A2 2 0 0 1 22 8.688v6.624a2 2 0 0 1-.586 1.414l-4.688 4.688a2 2 0 0 1-1.414.586H8.688a2 2 0 0 1-1.414-.586z"/><path d="m9 9 6 6"/>',
     'chevron-right': '<path d="m9 18 6-6-6-6"/>',
+    'brain': '<path d="M12 18V5"/><path d="M15 13a4.17 4.17 0 0 1-3-4 4.17 4.17 0 0 1-3 4"/><path d="M17.598 6.5A3 3 0 1 0 12 5a3 3 0 1 0-5.598 1.5"/><path d="M17.997 5.125a4 4 0 0 1 2.526 5.77"/><path d="M18 18a4 4 0 0 0 2-7.464"/><path d="M19.967 17.483A4 4 0 1 1 12 18a4 4 0 1 1-7.967-.517"/><path d="M6 18a4 4 0 0 1-2-7.464"/><path d="M6.003 5.125a4 4 0 0 0-2.526 5.77"/>',
   };
 
-  // Outils de l'extension (AGENT_TOOLS de core/agentic_executor.py)
+  // Outils de l'extension (AGENT_TOOLS de core/agentic_executor.py), puis ceux
+  // de la mémoire de My_AI, exécutés sur le PC (MEMORY_TOOLS ; remember_fact :
+  // un « retiens que… » enregistré)
   var TOOLS = {
     read_file: { icon: 'file-text', label: 'code.tool.read_file' },
     write_file: { icon: 'file-plus', label: 'code.tool.write_file' },
@@ -54,6 +57,8 @@
     run_command: { icon: 'square-terminal', label: 'code.tool.run_command' },
     get_active_editor: { icon: 'file-code-2', label: 'code.tool.get_active_editor' },
     open_file: { icon: 'external-link', label: 'code.tool.open_file' },
+    search_memory: { icon: 'brain', label: 'code.tool.search_memory' },
+    remember_fact: { icon: 'brain', label: 'code.tool.remember_fact' },
   };
   // Appel qui ne s'est pas simplement terminé : son état, à côté du libellé
   var STATUS_TEXTS = {
@@ -88,12 +93,15 @@
     return node;
   }
 
-  // Ce que vise l'appel, sur une ligne : chemin, motif ou commande
+  // Ce que vise l'appel, sur une ligne : chemin, motif, commande, recherche ou
+  // information retenue
   function target(part) {
     var input = part.input || {};
     var value = part.name === 'run_command' ? input.command
       : (part.name === 'glob' || part.name === 'grep') ? input.pattern
-        : (input.path || (part.name === 'list_dir' ? '.' : ''));
+        : part.name === 'search_memory' ? input.query
+          : part.name === 'remember_fact' ? input.fact
+            : (input.path || (part.name === 'list_dir' ? '.' : ''));
     var line = String(value || '').replace(/\s+/g, ' ').trim();
     return line.length > TARGET_LENGTH ? line.slice(0, TARGET_LENGTH) + '…' : line;
   }
