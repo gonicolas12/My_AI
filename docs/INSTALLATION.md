@@ -347,7 +347,7 @@ python-multipart>=0.0.9  # Parsing multipart pour POST /api/upload (pièces join
 
 ### Extension VS Code (Optionnel — assistant agentique pour développeurs)
 
-L'extension **My_AI Relay** est publiée sur le **Marketplace VS Code** sous l'identifiant `gonicolas12.my-ai`. Depuis sa **v1.1.0**, elle expose un mode **agentique** : le LLM local côté hôte peut lire, modifier, créer des fichiers, lancer des commandes shell et chercher dans le workspace VS Code, via 9 outils délégués au client. Les opérations destructives demandent l'approbation de l'utilisateur, et les chemins sont sandboxés au workspace ouvert par défaut.
+L'extension **My_AI Relay** est publiée sur le **Marketplace VS Code** sous l'identifiant `gonicolas12.my-ai`. Depuis sa **v1.1.0**, elle expose un mode **agentique** : le LLM local côté hôte peut lire, modifier, créer des fichiers, lancer des commandes shell et chercher dans le workspace VS Code, via 9 outils délégués au client, et consulter la mémoire de My_AI (`search_memory`, exécuté sur le PC). Les opérations destructives demandent l'approbation de l'utilisateur, et les chemins sont sandboxés au workspace ouvert par défaut. Depuis la **v1.7.2**, les cartes de la mémoire (« Retenu », « Recherche dans la mémoire ») s'affichent aussi dans la vue de l'extension.
 
 **Installation côté utilisateur** (aucune dépendance Python supplémentaire) :
 

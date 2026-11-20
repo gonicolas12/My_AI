@@ -776,15 +776,29 @@ facts = kb.extract_facts_from_text("Je préfère VS Code pour le Python")
 # Ce que l'utilisateur demande de retenir dans le chat (« retiens que… »), sans doublon
 fact_id, created = kb.remember("mon chat s'appelle Félix")
 
+# Portée d'un fait : « chat » (par défaut), « code » (tous les projets) ou
+# « project » (un dossier ouvert dans VS Code), comme les retient la conversation Code
+kb.remember("j'indente avec des tabulations", source="code",
+            scope="project", project="C:/dev/api")
+kb.chat_facts()                # ceux que le chat reçoit d'office
+kb.code_facts(["C:/dev/api"])  # ceux de la conversation Code dans ce dossier
+
 # Recherche
 results = kb.search_facts("Python", category="preference")
 
 # Faits pour le prompt IA : mots communs avec la requête (casse, accents,
-# pluriels ignorés), puis les plus récents
+# pluriels ignorés), puis les plus récents, parmi ceux du chat par défaut
 facts = kb.select_facts("Comment s'appelle mon chat ?")
 context = kb.get_context_for_prompt("Quel éditeur pour le Python ?")  # pertinents seulement
 # → "[Base de connaissances]\n- [preference] VS Code pour le Python (confiance: 70%)"
+
+# Faits de l'outil search_memory, chacun avec sa portée
+print(kb.search_text("tabulations"))
+# → "Faits mémorisés :\n- [general] L'utilisateur indente avec des tabulations
+#    (pour son projet de code « api »)"
 ```
+
+La conversation Code s'en sert à travers `core/code_memory.py` (`CodeMemory`) : voir [MEMORY.md](MEMORY.md#-dans-la-conversation-code-vs-code-page-code-téléphone).
 
 ### 🌍 Détection de Langue (`core/language_detector.py`)
 

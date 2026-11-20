@@ -11,7 +11,7 @@ My Personal AI est une **IA locale 100%** avec un système de **Mémoire Vectori
 - **ChatOrchestrator** : Boucle agentique ReAct + Plan & Execute + Scratchpad persistant pour le tool-calling
 - **Architecture 100% Locale** : Aucune dépendance cloud obligatoire, persistance locale
 - **API REST Locale** : Serveur FastAPI pour intégrations externes (chat, modèles, stats)
-- **Base de Connaissances Structurée** : Faits retenus depuis le chat (« retiens que… ») ou ajoutés à la main, injectés dans le prompt
+- **Base de Connaissances Structurée** : Faits retenus depuis le chat ou la conversation Code (« retiens que… ») ou ajoutés à la main ; chacun a une portée (chat, code de tous les projets, un projet) et va d'office dans le prompt de la conversation qui la porte, les autres le trouvant à la demande (`search_memory`)
 - **Multi-Workspaces** : Sessions isolées avec sauvegarde automatique et persistance JSON
 - **Export Multi-Format** : Conversations exportables en Markdown, HTML et PDF
 - **Détection de Langue** : 12 langues détectées automatiquement, réponse adaptée
@@ -26,7 +26,7 @@ My Personal AI est une **IA locale 100%** avec un système de **Mémoire Vectori
 - **Interface desktop web** : React + TypeScript (`frontend/`) dans une fenêtre native pywebview (WebView2 sous Windows), reliée au moteur par un serveur FastAPI local (`interfaces/desktop/`, 127.0.0.1, jeton par lancement : REST + WebSocket). Le chat passe par `core/chat_service.py`, sans interface, partagé avec le mobile ; la fenêtre reste fluide pendant que le moteur calcule.
 - **Aperçu Artifacts** : Rendu live du HTML/CSS/SVG généré par l'IA et des documents produits — `<iframe sandbox>` sans `allow-same-origin` dans la fenêtre comme sur le mobile, lecteur PDF de WebView2, visionneuses natives Word/PowerPoint/Excel posées dans le volet d'aperçu (fenêtre enfant DPI par écran). Ouverture automatique en fin de réponse. Détection partagée dans `interfaces/artifacts.py`.
 - **Génération de documents** : outils MCP `generate_document` / `edit_document` — le LLM rédige en Markdown, `generators/markdown_document.py` le découpe en blocs, un backend par format produit le docx, pdf, pptx ou xlsx dans `outputs/documents/`. Les pièces jointes sont modifiées sur une copie, jamais en place.
-- **Extension VS Code agentique** : Client TypeScript publié sur le Marketplace VS Code. Branchée sur le Relay via le même tunnel chiffré E2EE (AES-256-GCM) que le mobile, mais avec un **mode agentique** : à la connexion, l'extension s'identifie comme `client_kind: "vscode"` et le Relay aiguille la conversation vers une boucle de raisonnement (`core/agentic_executor.py`) qui appelle Ollama directement. Le LLM peut émettre des appels d'outils (lecture/écriture/édition de fichiers, ripgrep, commandes shell, etc.) qui sont **exécutés côté extension**, sandboxés au workspace VS Code par défaut, avec approbation utilisateur pour les opérations destructives. Cette **conversation Code** (`relay/code_hub.py`) est partagée avec la page **Code** de la fenêtre desktop et la vue **Code** du téléphone : un message tapé là part à l'extension, la réponse arrive partout en streaming, et une approbation se donne de n'importe laquelle des trois. Le chat classique (téléphone + fenêtre) en est isolé dans les deux sens. L'extension parle les 12 langues de My_AI, dans la langue choisie dans My_AI.
+- **Extension VS Code agentique** : Client TypeScript publié sur le Marketplace VS Code. Branchée sur le Relay via le même tunnel chiffré E2EE (AES-256-GCM) que le mobile, mais avec un **mode agentique** : à la connexion, l'extension s'identifie comme `client_kind: "vscode"` et le Relay aiguille la conversation vers une boucle de raisonnement (`core/agentic_executor.py`) qui appelle Ollama directement. Le LLM peut émettre des appels d'outils (lecture/écriture/édition de fichiers, ripgrep, commandes shell, etc.) qui sont **exécutés côté extension**, sandboxés au workspace VS Code par défaut, avec approbation utilisateur pour les opérations destructives ; seul `search_memory`, qui lit la mémoire de My_AI, s'exécute sur le PC. Cette **conversation Code** (`relay/code_hub.py`) est partagée avec la page **Code** de la fenêtre desktop et la vue **Code** du téléphone : un message tapé là part à l'extension, la réponse arrive partout en streaming, et une approbation se donne de n'importe laquelle des trois. Le chat classique (téléphone + fenêtre) en est isolé dans les deux sens ; tous deux partagent seulement la mémoire de My_AI, cloisonnée par portée (`core/code_memory.py`, voir [MEMORY.md](MEMORY.md#-dans-la-conversation-code-vs-code-page-code-téléphone)). L'extension parle les 12 langues de My_AI, dans la langue choisie dans My_AI.
 - **Modularité complète** : Composants indépendants avec fallbacks robustes
 
 ## 🚀 Architecture Système Complète
@@ -37,7 +37,7 @@ My Personal AI est une **IA locale 100%** avec un système de **Mémoire Vectori
 ├────────────────────────────────────────────────────────────────────────┤
 │  Fenêtre desktop (web)      │  CLI Enhanced    │  VSCode Extension     │
 │  • React + TypeScript       │  • Commandes     │  • Mode agentique     │
-│  • Fenêtre pywebview        │  • Historique    │  • 9 outils workspace │
+│  • Fenêtre pywebview        │  • Historique    │  • 9 outils + mémoire │
 │  • Serveur local FastAPI    │  • Stats         │  • Sandbox + approval │
 ├─────────────────────────────┴──────────────────┴───────────────────────┤
 │  Page Agents (même fenêtre)                                            │
@@ -317,26 +317,38 @@ Architecture:
 ```python
 Utilisé exclusivement par la conversation Code (relay/code_hub.py) : celle
 de l'extension VS Code (client_kind: "vscode"), que la page Code de la
-fenêtre et la vue Code du téléphone partagent. Les outils s'exécutent
-toujours dans l'extension. Le chat classique (mobile et fenêtre) n'utilise
-jamais ce module.
+fenêtre et la vue Code du téléphone partagent. Les outils s'exécutent dans
+l'extension, sauf ceux de la mémoire de My_AI (MEMORY_TOOLS), exécutés sur
+le PC par relay/code_hub.py. Le chat classique (mobile et fenêtre)
+n'utilise jamais ce module.
 
 Architecture:
 ├─ AGENT_TOOLS              # Schéma déclaratif des 9 outils workspace
 │                           #   (read_file, write_file, edit_file,
 │                           #    list_dir, glob, grep, run_command,
 │                           #    get_active_editor, open_file)
-├─ build_system_prompt(...)  # Prompt système avec doc des outils
-│                           #   et format <tool_use>{...}</tool_use>
-├─ parse_tool_calls(...)    # Extrait les blocs <tool_use> du texte LLM
-│                           #   (tolérant : code-fence ```json, JSON
-│                           #    malformés silencieusement ignorés)
+├─ MEMORY_TOOLS             # search_memory (faits et documents de la
+│                           #   mémoire), offert quand l'appli en a une
+├─ build_system_prompt(...)  # Prompt système avec doc des outils, format
+│                           #   <tool_use>{...}</tool_use> et section
+│                           #   « Mémoire » (CodeMemory.prompt_block)
+├─ parse_tool_blocks(...)   # Appels des blocs <tool_use> du texte LLM, et
+│                           #   les blocs illisibles. Réparé quand c'est sûr :
+│                           #   code-fence ```json, retours à la ligne réels,
+│                           #   échappements invalides, fermetures oubliées,
+│                           #   plusieurs objets ; dernier bloc sans
+│                           #   </tool_use> lu s'il finit hors d'une chaîne.
+│                           #   Un chemin (path, cwd) garde ses « \ ».
+│                           #   parse_tool_calls : les appels seuls
 ├─ RemoteToolExecutor       # Pont WS : envoie tool_use, await tool_result
 │                           #   via asyncio.Future indexées par call_id
 └─ AgenticExecutor.run()    # Boucle :
                             #   1. appel Ollama /api/chat en streaming
                             #   2. callback on_chunk pour broadcast WS
-                            #   3. parse les tool_use éventuels
+                            #   3. parse les tool_use éventuels ; un bloc
+                            #      illisible ou coupé : <tool_error> au
+                            #      modèle, qui le réécrit (2 passes de
+                            #      suite au plus, puis message ⚠️)
                             #   4. dispatche en parallèle (asyncio.gather)
                             #   5. réinjecte les résultats au LLM
                             #   6. répète jusqu'à plus de tool_use
@@ -385,11 +397,33 @@ Architecture:
 │   ├─ Préférences, Décisions, Personnes
 │   ├─ Procédures, Techniques
 │   └─ Confiance auto : 0.7
-├─ Mémorisation depuis le chat : extract_remember_request (« retiens que… »)
-│   + remember() sans doublon (aussi l'outil remember_fact du modèle)
+├─ Portée de chaque fait (colonnes scope, project) : chat, code (tous les
+│   projets) ou project (un dossier ouvert dans VS Code) ; une base d'avant
+│   les portées les reçoit à l'ouverture, ses faits restent au chat
+├─ Mémorisation depuis le chat et la conversation Code : extract_remember_request
+│   (« retiens que… ») + remember(portée) sans doublon (un fait de tous les
+│   projets vaut pour chacun ; retenu pour tous, un fait de projet s'étend) ;
+│   aussi l'outil remember_fact du modèle, dans le chat seulement
+├─ chat_facts() / code_facts(dossiers) : ceux que chaque conversation reçoit
 ├─ select_facts : mots communs avec la requête, puis les plus récents
+│   (parmi ceux du chat par défaut)
+├─ search_text : faits de l'outil search_memory, chacun avec sa portée
 ├─ Injection contexte dans le prompt IA (et dans la synthèse après outils)
 └─ CRUD complet avec recherche plein texte
+```
+
+**`core/code_memory.py`** - Mémoire dans la conversation Code
+```python
+CodeMemory (relay/code_hub.py la reçoit du Relay, avec le modèle) :
+├─ prompt_block(dossiers) : section « Mémoire » du prompt système, les
+│   faits du code (tous les projets, puis les dossiers ouverts), jamais ceux
+│   du chat (nom, famille… que le modèle glissait dans les fichiers)
+├─ remember(message, dossiers) : « retiens que… » du seul message de
+│   l'utilisateur (jamais un fichier ni un résultat d'outil), pour le premier
+│   dossier ouvert, ou pour tous les projets si le message le dit
+└─ search(...) : outil search_memory, exécuté sur le PC : faits du chat, du
+    code et des dossiers ouverts, puis documents (AIEngine.search_memory) ;
+    faute de fait correspondant, seuls ceux du code sont proposés
 ```
 
 **`core/memory_store.py`** - Accès CRUD unifié à la mémoire
@@ -716,10 +750,16 @@ Un hub par processus (get_code_hub), qui survit aux redémarrages du Relay :
 │   appels d'outils) et historique du modèle, gardés dans
 │   data/code_conversation.json ; l'historique est borné à la fenêtre de
 │   contexte, et son prompt système ne change qu'avec les dossiers ouverts,
-│   la langue ou le jour (cache d'Ollama)
+│   la langue, le jour ou un fait du code modifié ailleurs (cache d'Ollama)
 ├─ send(texte, origine) : une réponse à la fois ; la boucle agentique tourne
 │   sur la boucle asyncio du Relay, ses outils dans l'extension la plus
-│   récemment active (RemoteToolExecutor, avec l'origine du message)
+│   récemment active (RemoteToolExecutor, avec l'origine du message), ceux
+│   de la mémoire sur le PC (_HubTools)
+├─ Mémoire (core/code_memory.py, quand l'appli en a une) : « retiens que… »
+│   du message enregistré avant la réponse, une carte remember_fact et une
+│   note [Mémoire] pour le modèle ; la section « Mémoire » du prompt système
+│   reste telle quelle après un « retiens que… » (_memory_view, gardée avec
+│   la conversation), et revient refaite quand le début de l'historique part
 ├─ Approbations : l'extension rapporte awaiting-approval (avec les réponses
 │   possibles hors de VS Code, pour un message du PC ou du téléphone),
 │   running, denied ; approve() transmet la réponse ; pas de délai pendant
@@ -733,7 +773,8 @@ Un hub par processus (get_code_hub), qui survit aux redémarrages du Relay :
 │   liens vers son volet d'aperçu, la vue Code du téléphone vers sa fenêtre
 │   d'aperçu
 └─ Événements (snapshot, state, user, chunk, tool, done, cleared) traduits
-    par vscode_view (protocole de l'extension : ack, chunk, response…),
+    par vscode_view (protocole de l'extension : ack, chunk, response… ; des
+    outils, seuls ceux exécutés sur le PC, en code_tool),
     mobile_view (code_* ; RelayServer.code_mobile_view y ajoute les liens
     des réponses terminées, dont le Relay montre alors l'aperçu) et
     interfaces/desktop/code.py (bus « code.* » ; pièces jointes avec leur
@@ -1473,7 +1514,9 @@ Ollama directement, parse les balises `<tool_use>{...}</tool_use>` du modèle,
 et envoie chaque outil au client via WebSocket (`tool_use` chiffré). Le
 client exécute l'outil dans son `ToolDispatcher` (avec sandbox + approbation)
 puis renvoie le résultat via `tool_result`. Le LLM continue ses itérations
-jusqu'à produire une réponse finale. Le mobile n'envoie pas de
+jusqu'à produire une réponse finale. Les outils de la mémoire de My_AI
+(`search_memory`, et la carte d'un « retiens que… ») sont exécutés sur le PC :
+l'extension n'en reçoit que les cartes (`code_tool`, `media/chat.js`). Le mobile n'envoie pas de
 `client_hello` → il reste sur le pipeline historique (bridge → service de chat
 de l'appli, avec MCP locaux complets), et ses réponses ne sont jamais
 diffusées à l'extension. La conversation de l'extension est celle de
