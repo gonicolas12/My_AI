@@ -157,9 +157,11 @@ card for a message typed on the PC or the phone).
 
 **Memory**: "remember that…", typed in the view, is saved by My_AI for the
 open folder ("remember for all my projects that…": for all of them), and a
-"Remembered" card shows it. What is remembered for code comes back in every
-Code conversation in that folder; the rest of the memory, on demand
-(`search_memory`). See docs/MEMORY.md in the repository.
+"Remembered" card shows it. "Forget that…" or "remember instead that…"
+removes or replaces a fact (a "Forgotten" card), and a lasting preference you
+state in passing ("I always use black") is kept on its own. What is remembered
+for code comes back in every Code conversation in that folder; the rest of the
+memory, on demand (`search_memory`). See docs/MEMORY.md in the repository.
 
 ### Sandbox & approvals
 
