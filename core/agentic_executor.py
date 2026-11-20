@@ -33,7 +33,7 @@ import re
 import threading
 import time
 import uuid
-from typing import Any, Awaitable, Callable, Dict, List, Optional
+from typing import Any, Awaitable, Callable, Dict, List, Optional, Tuple
 
 import requests
 
@@ -357,36 +357,211 @@ def _safe_on_chunk(
 
 
 def parse_tool_calls(assistant_text: str) -> List[Dict[str, Any]]:
-    """Extrait les blocs <tool_use>...</tool_use> du texte du modèle.
+    """Appels d'outils lisibles des blocs <tool_use>...</tool_use> du texte du
+    modèle (voir parse_tool_blocks, qui rend aussi les blocs illisibles)."""
+    return parse_tool_blocks(assistant_text)[0]
 
-    Tolère le JSON malformé : on logge et on ignore le bloc invalide. Le
-    LLM verra son tool_use rester sans réponse → il pourra réessayer.
+
+def parse_tool_blocks(
+    assistant_text: str,
+) -> Tuple[List[Dict[str, Any]], List[Dict[str, str]]]:
+    """Appels d'outils du texte du modèle, et les blocs qu'il n'a pas su écrire.
+
+    Un JSON presque valide est réparé (_load_tool_json) : retours à la ligne
+    réels dans une chaîne, échappement invalide (« C:\\Users »), accolades ou
+    guillemet fermants oubliés en fin de bloc, plusieurs objets dans un bloc.
+    my_ai oubliait l'accolade de « input » après le long contenu d'un
+    write_file : le bloc était jeté, la passe n'avait plus d'appel et sa
+    réponse s'arrêtait sur « Voici le code complet… », sans le code.
+
+    Un dernier bloc sans </tool_use> est lu de même s'il se termine hors d'une
+    chaîne : le modèle s'est arrêté juste avant ses dernières fermetures (vu
+    avec my_ai après le long « new_string » d'un edit_file), son contenu est
+    entier. Coupé au milieu d'une chaîne, son contenu est incomplet : il n'est
+    jamais réparé.
+
+    Un bloc qui reste illisible, ou coupé, est rendu à part, pour que la boucle
+    le dise au modèle au lieu de conclure.
+
+    Returns:
+        (appels, blocs illisibles {"name": outil visé ou « ? », "reason":
+        « json » ou « truncated », "detail": erreur JSON})
     """
     calls: List[Dict[str, Any]] = []
+    broken: List[Dict[str, str]] = []
     for match in _TOOL_USE_RE.finditer(assistant_text):
-        body = match.group("body").strip()
-        body = _strip_code_fence(body)
+        body = _strip_code_fence(match.group("body").strip())
+        _read_block(body, calls, broken, closed=True)
+    rest = _TOOL_USE_RE.sub("", assistant_text)
+    cut = _PARTIAL_TOOL_USE_OPEN_RE.search(rest)
+    if cut is not None:
+        body = _strip_code_fence(_TOOL_USE_OPEN_TAG_RE.sub("", rest[cut.start():], count=1).strip())
+        if _open_structure(body)[1]:
+            logger.warning("Bloc <tool_use> coupé au milieu d'une chaîne : %r", body[:120])
+            broken.append({"name": _tool_name_hint(body), "reason": "truncated", "detail": ""})
+        else:
+            _read_block(body, calls, broken, closed=False)
+    return calls, broken
+
+
+def _read_block(body: str, calls: List[Dict[str, Any]], broken: List[Dict[str, str]],
+                closed: bool) -> None:
+    """Appels d'un bloc <tool_use> (réparé au besoin), ou le bloc rendu illisible."""
+    values, error, repaired = _load_tool_json(body)
+    found = [call for call in (_tool_call(value) for value in values) if call]
+    calls.extend(found)
+    if found and (repaired or not closed):
+        how = ", ".join(part for part in (repaired, "" if closed else "sans </tool_use>") if part)
+        logger.info("Bloc <tool_use> réparé (%s) : %s", how,
+                    ", ".join(call["name"] for call in found))
+    if error is not None or not found:
+        detail = error or "aucun objet avec « name »"
+        logger.warning("Bloc <tool_use> illisible (%s) : %r", detail, body[:120])
+        broken.append({"name": _tool_name_hint(body), "reason": "json" if closed else "truncated",
+                       "detail": detail})
+
+
+# JSON des blocs : retours à la ligne et tabulations réels tolérés dans une chaîne
+# (le contenu d'un fichier écrit tel quel)
+_TOOL_JSON = json.JSONDecoder(strict=False)
+# Entre deux objets d'un même bloc : blancs, virgules, balises en trop
+_BETWEEN_OBJECTS_RE = re.compile(r"(?:\s|,|</?tool_use>)+", re.IGNORECASE)
+# Balise ouvrante d'un dernier bloc sans </tool_use> (« > » compris, s'il est écrit)
+_TOOL_USE_OPEN_TAG_RE = re.compile(r"<tool_use\s*>?", re.IGNORECASE)
+# Échappement d'une chaîne JSON : « \uXXXX » ou un caractère
+_ESCAPE_RE = re.compile(r"\\(u[0-9a-fA-F]{4}|.)", re.DOTALL)
+_TOOL_NAME_RE = re.compile(r'"name"\s*:\s*"([A-Za-z_][\w-]*)"')
+
+
+# Arguments qui sont des chemins, et les caractères qu'un chemin ne contient jamais
+_PATH_KEYS = ("path", "cwd")
+_CONTROL_ESCAPES = {"\n": "\\n", "\t": "\\t", "\r": "\\r", "\b": "\\b", "\f": "\\f"}
+
+
+def _literal_path(value: Any) -> Any:
+    """Chemin Windows écrit avec des « \\ » simples (« tests\\test_utils.py ») :
+    JSON y lit une tabulation ou un retour à la ligne, rendus à leur « \\ »."""
+    if not isinstance(value, str):
+        return value
+    return "".join(_CONTROL_ESCAPES.get(char, char) for char in value)
+
+
+def _tool_call(data: Any) -> Optional[Dict[str, Any]]:
+    """Appel d'outil d'un objet JSON du modèle (None sans « name »)."""
+    if not isinstance(data, dict):
+        return None
+    name = data.get("name")
+    if not isinstance(name, str) or not name:
+        return None
+    input_data = data.get("input", {})
+    if not isinstance(input_data, dict):
+        input_data = {}
+    for key in _PATH_KEYS:
+        if key in input_data:
+            input_data[key] = _literal_path(input_data[key])
+    return {"call_id": uuid.uuid4().hex, "name": name, "input": input_data}
+
+
+def _tool_name_hint(text: str) -> str:
+    """Outil que visait un bloc illisible, s'il se lit encore (« ? » sinon)."""
+    match = _TOOL_NAME_RE.search(text or "")
+    return match.group(1) if match else "?"
+
+
+def _decode_objects(text: str) -> Tuple[List[Any], Optional[str]]:
+    """Objets JSON à la suite dans un bloc ; l'erreur s'il reste autre chose."""
+    values: List[Any] = []
+    position = 0
+    while True:
+        gap = _BETWEEN_OBJECTS_RE.match(text, position)
+        if gap is not None:
+            position = gap.end()
+        if position >= len(text):
+            return values, None
         try:
-            data = json.loads(body)
+            value, position = _TOOL_JSON.raw_decode(text, position)
         except json.JSONDecodeError as exc:
-            logger.warning(
-                "Bloc <tool_use> ignoré (JSON invalide: %s) : %r", exc, body[:120]
-            )
-            continue
-        if not isinstance(data, dict):
-            continue
-        name = data.get("name")
-        if not isinstance(name, str) or not name:
-            continue
-        input_data = data.get("input", {})
-        if not isinstance(input_data, dict):
-            input_data = {}
-        calls.append({
-            "call_id": uuid.uuid4().hex,
-            "name": name,
-            "input": input_data,
-        })
-    return calls
+            return values, str(exc)
+        values.append(value)
+
+
+def _fix_escapes(text: str) -> str:
+    """Échappements invalides doublés : « C:\\Users » écrit tel quel dans une chaîne."""
+    def repl(match: re.Match) -> str:
+        sequence = match.group(1)
+        if len(sequence) == 5 or sequence in "\"\\/bfnrt":
+            return match.group(0)
+        return "\\\\" + sequence
+    return _ESCAPE_RE.sub(repl, text)
+
+
+def _open_structure(text: str) -> Tuple[List[str], bool]:
+    """Ce qui reste ouvert à la fin d'un JSON : les fermetures attendues
+    (accolades, crochets, dans l'ordre d'ouverture), et si une chaîne l'est."""
+    stack: List[str] = []
+    in_string = escaped = False
+    for char in text:
+        if in_string:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == '"':
+                in_string = False
+        elif char == '"':
+            in_string = True
+        elif char in "{[":
+            stack.append("}" if char == "{" else "]")
+        elif char in "}]" and stack and stack[-1] == char:
+            stack.pop()
+    return stack, in_string
+
+
+def _close_open(text: str) -> str:
+    """Fermetures oubliées en fin de bloc : guillemet d'une chaîne ouverte, puis
+    accolades et crochets encore ouverts, dans l'ordre."""
+    stack, in_string = _open_structure(text)
+    return text + ('"' if in_string else "") + "".join(reversed(stack))
+
+
+def _load_tool_json(body: str) -> Tuple[List[Any], Optional[str], str]:
+    """Objets JSON d'un bloc <tool_use>, réparé au besoin.
+
+    Returns:
+        (objets, erreur s'il reste de l'illisible, réparation faite ou "")
+    """
+    repairs = (
+        ("", body),
+        ("échappements", _fix_escapes(body)),
+        ("fermetures", _close_open(body)),
+        ("échappements et fermetures", _close_open(_fix_escapes(body))),
+    )
+    best: Tuple[List[Any], Optional[str], str] = ([], None, "")
+    for label, candidate in repairs:
+        values, error = _decode_objects(candidate.strip())
+        if error is None and values:
+            return values, None, label
+        if not best[0] and best[1] is None or len(values) > len(best[0]):
+            best = (values, error, label if values else "")
+    return best
+
+
+def _broken_tool_note(broken: List[Dict[str, str]]) -> str:
+    """Ce que le modèle apprend de ses blocs illisibles (parse_tool_blocks) :
+    rien n'a été exécuté, et comment les réécrire."""
+    notes = []
+    for item in broken:
+        if item["reason"] == "truncated":
+            text = ("Ton dernier bloc <tool_use> est coupé (pas de </tool_use>) : rien n'a été "
+                    "exécuté. S'il était long, écris le fichier en plusieurs fois : write_file "
+                    "avec le début, puis edit_file pour ajouter la suite.")
+        else:
+            text = (f"Ton bloc <tool_use> n'est pas du JSON valide ({item['detail']}) : rien "
+                    "n'a été exécuté. Réécris-le en entier, en JSON strict : guillemets du "
+                    "contenu échappés (\\\"), retours à la ligne écrits \\n, toutes les "
+                    "accolades fermées.")
+        notes.append(f'<tool_error name="{item["name"]}">\n{text}\n</tool_error>')
+    return "\n\n".join(notes)
 
 
 def _tool_signature(call: Dict[str, Any]) -> str:
@@ -528,6 +703,9 @@ class AgenticExecutor:
     # réécrivent parfois le même fichier en boucle sans jamais conclure).
     LOOP_SOFT_LIMIT = 3
     LOOP_HARD_LIMIT = 5
+    # Passes de suite dont les appels d'outils sont tous illisibles (JSON
+    # invalide, bloc coupé) : le modèle est relancé, puis la boucle s'arrête
+    BROKEN_RETRY_LIMIT = 2
 
     def __init__(
         self,
@@ -594,6 +772,8 @@ class AgenticExecutor:
 
         # Compteur de signatures d'appels d'outils (garde-fou anti-boucle).
         signature_counts: Dict[str, int] = {}
+        # Passes de suite sans appel lisible, seulement des blocs illisibles
+        broken_passes = 0
 
         for iteration_index in range(max_iters):
             segment_index = iteration_index
@@ -608,7 +788,7 @@ class AgenticExecutor:
             )
             messages.append({"role": "assistant", "content": assistant_text})
 
-            tool_calls = parse_tool_calls(assistant_text)
+            tool_calls, broken = parse_tool_blocks(assistant_text)
             visible_chunk = strip_tool_use_for_display(assistant_text)
             if visible_chunk:
                 segments.append(visible_chunk)
@@ -616,13 +796,37 @@ class AgenticExecutor:
                 # version complète du segment avant les cartes d'outils.
                 _safe_on_chunk(on_chunk, visible_chunk, segment_index)
 
-            if not tool_calls:
+            if not tool_calls and not broken:
                 final_text = "\n\n".join(segments) if segments else assistant_text.strip()
                 logger.info(
                     "Boucle agentique : fin (itération %d, %d segment(s), %d chars)",
                     iteration_index + 1, len(segments), len(final_text),
                 )
                 return final_text
+
+            if not tool_calls:
+                # Rien d'exécutable : le dire au modèle plutôt que de conclure sur
+                # son annonce (« Voici le code complet… », sans le code)
+                broken_passes += 1
+                if broken_passes > self.BROKEN_RETRY_LIMIT:
+                    logger.warning(
+                        "Boucle agentique : %d passes de suite aux appels illisibles → arrêt",
+                        broken_passes,
+                    )
+                    final_text = "\n\n".join(segments)
+                    return (
+                        final_text
+                        + "\n\n[⚠️ Le modèle n'a pas réussi à écrire son appel d'outil "
+                        "(JSON invalide) : rien n'a été exécuté. Relance ta demande, au "
+                        "besoin en plus petites étapes.]"
+                    ).strip()
+                logger.info(
+                    "Boucle agentique : itération %d → appel(s) illisible(s) [%s], modèle relancé",
+                    iteration_index + 1, ", ".join(item["name"] for item in broken),
+                )
+                messages.append({"role": "user", "content": _broken_tool_note(broken)})
+                continue
+            broken_passes = 0
 
             tool_names = ", ".join(c["name"] for c in tool_calls)
             logger.info(
@@ -665,6 +869,9 @@ class AgenticExecutor:
             # pour rester compatible avec tous les modèles, même ceux qui
             # n'ont pas le rôle "tool").
             results_block = self._format_tool_results(tool_calls, results)
+            if broken:
+                # Ceux de ses appels qui n'ont pas pu être lus, à réécrire
+                results_block += "\n\n" + _broken_tool_note(broken)
             # Recadrage progressif : on prévient le modèle qu'il se répète,
             # pour l'inciter à conclure sans nouvel appel d'outil.
             if worst_count >= self.LOOP_SOFT_LIMIT:
@@ -879,6 +1086,7 @@ __all__ = [
     "AgenticExecutor",
     "RemoteToolExecutor",
     "build_system_prompt",
+    "parse_tool_blocks",
     "parse_tool_calls",
     "strip_tool_use_for_display",
 ]
