@@ -5,6 +5,28 @@ All notable changes to the **My_AI Relay** VS Code extension are documented here
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.7.2] — 2026-11-20
+
+The Code conversation shows what My_AI's memory does.
+
+### Added
+- **Memory cards.** "Remember that…" typed in the Code conversation (here,
+  on the PC or on the phone) is saved by My_AI for the folder open in
+  VS Code ("remember for all my projects that…": for all of them), and a
+  **Remembered** card shows it at the top of the reply. When the model
+  searches My_AI's memory (remembered facts, documents of the Memory
+  panel), a **Searching memory** card shows it too. Both run on the PC,
+  not in the extension, which now draws their cards as well.
+
+### Notes
+- The cards need a host updated since 2026-11-20 (My_AI after 9.2.0).
+  With an older host, the extension works as 1.7.1 did. With an older
+  extension, the memory works the same, but its cards only show once the
+  view is reloaded, under their raw names.
+- On an updated host, a tool call the model writes with a slip (a missing
+  brace, a block cut before `</tool_use>`) is repaired or asked for again,
+  instead of ending the reply without its code.
+
 ## [1.7.1] — 2026-11-19
 
 A right-click shows a cited file in the system's file manager, and HTML
