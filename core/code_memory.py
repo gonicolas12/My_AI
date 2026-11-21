@@ -363,12 +363,20 @@ _CONFIRM_SPONTANEOUS_SYSTEM = (
     "message. Pour chacune, réponds true seulement si son message la rend fausse : il dit "
     "autre chose sur le même sujet (« j'ai déménagé à Nantes » rend fausse « j'habite à "
     "Lyon » ; « je code maintenant sous VS Code » rend fausse « j'utilise PyCharm » : deux "
-    "outils pour le même usage). Réponds false si elle parle d'autre chose, même s'il dit "
-    "quelque chose de nouveau sur lui."
+    "outils pour le même usage). « Maintenant », « désormais », « je suis passé à » "
+    "annoncent un tel changement : ce qui valait avant pour le même usage ne vaut plus. "
+    "Réponds false si elle parle d'autre chose, même s'il dit quelque chose de nouveau sur "
+    "lui. Réponds false aussi quand elle reste vraie avec ce qu'il ajoute (« j'ai aussi un "
+    "chien » ne rend pas fausse « j'ai un chat »)."
 )
 # L'exemple des outils : sans lui, le second appel gardait « j'utilise black » pour
 # « maintenant je formate avec ruff », et de même jest pour vitest, ou des commits en
-# anglais pour des commits en français (16 cas sur 20 tranchés juste, 19 avec)
+# anglais pour des commits en français (16 cas sur 20 tranchés juste, 19 avec).
+# « Maintenant », « désormais »… et ce qui s'ajoute : sans eux, il gardait « j'utilise
+# unittest » pour « en fait, maintenant j'utilise pytest pour mes tests » et « je suis
+# comptable » pour « j'ai changé de métier : je suis boulanger maintenant », et retirait
+# « mon chat s'appelle Félix » pour « j'ai adopté un deuxième chat, Moka » (chaque fois).
+# Sonde de 27 paires, deux fois chacune : 48 verdicts justes sur 54 avant, 54 avec
 
 
 def _confirm_prompt(message: str, new: Sequence[str], candidates: Sequence[str],
