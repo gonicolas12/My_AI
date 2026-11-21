@@ -178,6 +178,12 @@ _DONE_TASK_RE = re.compile(
 )
 
 
+# Un fait qui commence à la deuxième personne (« ton code est… », « tu travailles… ») :
+# pour un renvoi (« retiens ça »), repris de la réponse de l'assistant plutôt que des
+# mots de l'utilisateur (apply_reading)
+_SECOND_PERSON_RE = re.compile(r"(?:ton|ta|tes|tu|t['’])(?![\w])", re.IGNORECASE)
+
+
 def remember_request(message: str) -> Tuple[Optional[str], str, str]:
     """
     Information que le message demande de retenir dans la conversation Code, sa
@@ -735,22 +741,27 @@ def apply_reading(kb: Any, message: str, reading: Reading, known: Sequence[Dict[
         return kept
 
     kept = keep(facts)
-    if (asked and not kept and reread is not None
+    if (asked and reread is not None and (not kept or any(map(_SECOND_PERSON_RE.match, kept)))
             and only_asks_to_remember(_without_scope(message))):
         # « Retiens ça » dont le modèle n'a rien tiré : relu sur ce que l'utilisateur
         # a dit, sans les réponses de l'assistant, qui l'égaraient (« c'est
-        # enregistré », écrit sans que rien ne le soit)
+        # enregistré », écrit sans que rien ne le soit). De même s'il a repris les mots
+        # de l'assistant (« Ton code de casier est le 4815 », après « Ton code de
+        # casier est bien le 4815. Si tu veux que je m'en souvienne, dis-moi
+        # « retiens ça » ») : à la deuxième personne, le fait passerait pour une
+        # consigne pour l'IA. S'il n'en tire rien, la première lecture reste
         own = [(who, text) for who, text in context if who == "Utilisateur"]
         if own and len(own) < len(context):
             try:
-                reading = reread(own)
+                again = reread(own)
             except Exception as exc:  # pylint: disable=broad-except
                 logger.warning("%s : renvoi non relu (%s)", label, exc)
             else:
                 logger.info("%s : renvoi relu sans les réponses de l'assistant : retenir %s",
-                            label, [fact[:60] for fact in reading.remember])
-                facts = list(reading.remember)
-                kept = keep(facts)
+                            label, [fact[:60] for fact in again.remember])
+                kept_again = keep(list(again.remember))
+                if kept_again or not kept:
+                    reading, facts, kept = again, list(again.remember), kept_again
     if asked and not kept and (facts or not reading.forget):
         # Le modèle n'a rien lu de retenable là où il fallait : les règles
         fact, rule_scope = rules(message) if rules else (None, scope)

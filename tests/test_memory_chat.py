@@ -918,6 +918,40 @@ def test_remember_that_after_a_wrong_claim_keeps_what_the_user_said(kb, ollama, 
     assert not ollama.requests
 
 
+class _EchoingReader(_Reader):
+    """Le vrai lecteur après la réponse honnête (« Ton code de casier est bien le 4815.
+    Si tu veux que je m'en souvienne, dis-moi « retiens ça » ») : il en reprenait les
+    mots, à la deuxième personne ; sans elle, ceux de l'utilisateur."""
+
+    def __call__(self, message, context, known, project, asked):
+        self.calls.append({"message": message, "context": context, "known": known,
+                           "asked": asked})
+        if any(who == "Assistant" for who, _text in context):
+            return Reading(["Ton code de casier à la salle de sport est le 4815"], [])
+        return Reading(["Le code de mon casier à la salle de sport est le 4815"], [])
+
+
+def test_remember_that_keeps_the_user_words_not_the_answer(kb, ollama, monkeypatch):
+    """« Retiens ça » après « Ton code de casier est bien le 4815… » : « Ton code de
+    casier… », à la deuxième personne, passerait pour une consigne pour l'IA. Relu sur
+    les seuls messages de l'utilisateur, ce sont ses mots qui sont retenus."""
+    reader = _EchoingReader({})
+    monkeypatch.setattr(ChatMemoryReader, "for_llm", classmethod(lambda cls, llm: reader))
+    engine = _engine(kb)
+    said = [("Utilisateur", "Le code de mon casier à la salle de sport est le 4815."),
+            ("Assistant", "Ton code de casier est bien le 4815. Si tu veux que je m'en "
+                          "souvienne, dis-moi simplement « retiens ça ».")]
+    engine.local_ai.local_llm.conversation_history = [
+        {"role": "user" if who == "Utilisateur" else "assistant", "content": text}
+        for who, text in said]
+
+    engine.process_query_stream("Retiens ça.", on_token=lambda _token: None)
+
+    assert [fact["value"] for fact in kb.get_all_facts()] == [
+        "Le code de mon casier à la salle de sport est le 4815"]
+    assert [call["context"] for call in reader.calls] == [said, said[:1]]
+
+
 def test_a_preference_given_in_passing_is_kept_from_the_chat(kb, ollama, monkeypatch):
     """« Je suis végétarien depuis dix ans », sans « retiens » : lu pendant la réponse,
     et signalé après son texte."""
