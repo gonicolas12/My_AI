@@ -80,6 +80,21 @@ _PERSONS = (
 _SECOND_PERSON_WORD_RE = re.compile(r"(?<![\w'’])(?:(?:tu|te|toi|ton|ta|tes)\b|t['’])",
                                     re.IGNORECASE)
 _CLAUSE_END_RE = re.compile(r"[.!?;:,()\[\]«»\"“”\n]+")
+# Sans demande, ce qu'il cherche est sa demande du moment, même sans « ? » : de « Je
+# cherche un roman en espagnol pour ma sœur. », le modèle retenait « je cherche un
+# roman en espagnol pour ma sœur », ou en tirait « ma sœur aime les romans en
+# espagnol ». Rien de ce qui vient de cette partie du message n'est retenu ; ce qu'il
+# dit à côté (« …pour ma sœur, qui vit à Madrid ») reste (_from_a_search). « Je cherche
+# à… » (j'essaie de) n'est pas une recherche
+_SEARCH_RE = re.compile(
+    r"(?<![\w'’])(?:(?:je|on)\s+(?:re)?cherche|nous\s+(?:re)?cherchons)\b(?!\s+[àa]\s)"
+    r"|(?<![\w'’])[àa]\s+la\s+recherche\s+d",
+    re.IGNORECASE,
+)
+# Les parties d'un message : ses propositions, et ce que relient « et », « mais »,
+# « qui »…
+_PART_RE = re.compile(r"[.!?;:,()\[\]«»\"“”\n]+|\s(?:et|mais|car|donc|qui|parce\s+que|puisque)\s",
+                      re.IGNORECASE)
 
 _CHAT_ASKED_SYSTEM = (
     "Tu tiens la mémoire de My_AI, un assistant personnel. Le dernier message de "
@@ -256,8 +271,25 @@ def _said_of_himself(message: str) -> str:
     said = [clause.strip() for clause in _CLAUSE_END_RE.split(message)]
     said = [clause for clause in said
             if any(me_re.match(clause) for _you_re, me_re in _PERSONS)
-            and not _SECOND_PERSON_WORD_RE.search(clause)]
+            and not _SECOND_PERSON_WORD_RE.search(clause) and not _SEARCH_RE.search(clause)]
     return " ".join(clause + "." for clause in said)
+
+
+def _from_a_search(fact: str, message: str) -> bool:
+    """
+    Le fait vient-il de ce qu'il cherche (« je cherche un roman en espagnol pour ma
+    sœur ») ? Oui si les parties du message qui ont le plus de ses mots le cherchent
+    toutes : « ma sœur vit à Madrid », de « Je cherche un roman pour ma sœur, qui vit à
+    Madrid », vient de « qui vit à Madrid ».
+    """
+    if not _SEARCH_RE.search(message):
+        return False
+    wanted = set(content_words(fact))
+    shares = [(len(wanted & set(content_words(part))), part)
+              for part in _PART_RE.split(message) if part.strip()]
+    best = max((shared for shared, _part in shares), default=0)
+    return best > 0 and all(_SEARCH_RE.search(part) for shared, part in shares
+                            if shared == best)
 
 
 def _read(reader: Any, text: str, message: str, context: Sequence[Tuple[str, str]],
@@ -284,8 +316,8 @@ def _read(reader: Any, text: str, message: str, context: Sequence[Tuple[str, str
 def _drop_unwanted(reading: Reading, message: str) -> List[str]:
     """
     Sans demande, retire de reading ce qui ne se retient pas : une consigne tirée d'une
-    question qui ne la dit pas durable (sa demande du moment), un code ou un mot de
-    passe. Renvoie ses demandes du moment.
+    question qui ne la dit pas durable (sa demande du moment), ce qui vient de ce qu'il
+    cherche, un code ou un mot de passe. Renvoie les consignes tirées d'une question.
     """
     question = "?" in message and not _LASTING_RE.search(message)
     momentary = []
@@ -295,6 +327,10 @@ def _drop_unwanted(reading: Reading, message: str) -> List[str]:
                         "pas retenu", fact[:80])
             reading.remember.remove(fact)
             momentary.append(fact)
+        elif _from_a_search(fact, message):
+            logger.info("Chat : « %s » vient de ce qu'il cherche, sa demande du moment : "
+                        "pas retenu", fact[:80])
+            reading.remember.remove(fact)
         elif _SECRET_RE.search(fact):
             logger.info("Chat : « %s » est un code, retenu seulement sur demande", fact[:80])
             reading.remember.remove(fact)
