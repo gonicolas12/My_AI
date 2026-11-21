@@ -282,6 +282,10 @@ Sécurités:
 │  synthèse aussitôt, sans tour de plus
 ├─ Appel à Ollama en échec, document demandé pas encore créé : refait une
 │  fois ; le corps des erreurs HTTP est journalisé
+├─ Information donnée en passant (ni question ni demande) et rien n'en est
+│  retenu : une réponse directe qui dit l'avoir notée n'est pas affichée (son
+│  début est jugé dans le tampon du premier tour, screen) et elle est refaite
+│  sans outils, la note _NOT_MEMORIZED_USER_NOTE après le message
 └─ Détection d'hallucinations dans la réponse finale
 ```
 

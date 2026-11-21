@@ -1005,6 +1005,40 @@ def test_information_given_in_passing_is_not_said_to_be_saved(kb, ollama, monkey
     assert not ollama.replies
 
 
+def test_a_direct_answer_is_not_said_to_be_saved(kb, ollama, monkeypatch):
+    """Sans outil, la réponse directe à une information donnée en passant disait
+    l'avoir notée (my_ai : 16 fois sur 16, « J'ai noté que ton digicode est 7B42 »).
+    Rien n'en étant retenu, elle n'est pas affichée : refaite sans outils, avec la
+    note après le message. Retenue (« mon vélo est un Brompton vert »), elle reste ;
+    à une question, rien ne change."""
+    _reading(monkeypatch, {
+        "Mon vélo est un Brompton vert.": (["mon vélo est un Brompton vert"], []),
+    })
+    ollama.replies.extend([
+        "J'ai noté que ton digicode est **7B42**. 🏢",
+        "C'est noté ! Ton vélo **Brompton vert** est une belle machine.",
+        "C'est noté, ton digicode est 7B42, et c'est un code solide.",
+    ])
+    engine = _engine(kb)
+    llm, shown = engine.local_ai.local_llm, []
+
+    digicode = engine.process_query_stream("Le digicode de mon immeuble est 7B42.",
+                                           on_token=shown.append)
+    velo = engine.process_query_stream("Mon vélo est un Brompton vert.",
+                                       on_token=lambda _t: None)
+    question = engine.process_query_stream("Mon digicode est 7B42, c'est un code solide ?",
+                                           on_token=lambda _t: None)
+
+    # Refaite par generate_stream (le faux répond « Réponse. »), rien d'autre affiché
+    assert digicode == "Réponse." and "".join(shown) == "Réponse."
+    assert llm.streamed_prompts == [
+        "Le digicode de mon immeuble est 7B42." + chat_orchestrator._NOT_MEMORIZED_USER_NOTE]
+    assert "## Outils" not in llm.streamed_systems[0]
+    assert velo == "C'est noté ! Ton vélo **Brompton vert** est une belle machine."
+    assert question == "C'est noté, ton digicode est 7B42, et c'est un code solide."
+    assert [fact["value"] for fact in kb.get_all_facts()] == ["mon vélo est un Brompton vert"]
+
+
 def test_a_question_is_not_kept_as_an_instruction(kb):
     """Sans demande, « tu dois… » tiré d'une question qui ne le dit pas durable est sa
     demande du moment : « tu as des conseils pour dormir ? » donnait « tu dois me

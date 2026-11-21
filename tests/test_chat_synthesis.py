@@ -687,6 +687,38 @@ def test_other_syntheses_keep_their_answer(ollama, user_input, used, kept):
     assert not asked
 
 
+@pytest.mark.parametrize("reply", [
+    "J'ai noté que ton digicode est **7B42**. 🏢",
+    # Plus long que le tampon du premier tour : jugé dès ses 120 premiers caractères
+    "C'est noté Camille ! 🚆 Ton train pour Bordeaux part demain à **8h12**. Veux-tu que "
+    "je te prépare une petite checklist pour le voyage, ou que je vérifie la météo ?",
+])
+def test_a_rejected_first_turn_is_held(ollama, reply):
+    """Premier tour sans outil : un début que screen refuse n'est pas affiché, et la
+    réponse est seulement accumulée, à refaire par l'appelant."""
+    ollama.replies.append(reply)
+    shown = []
+
+    result = ChatOrchestrator()._call_ollama_smart_stream(
+        _LLM(), [{"role": "user", "content": "Le digicode est 7B42."}], [],
+        on_token=shown.append, screen=lambda text: not _claims_memory(text))
+
+    assert result["held"] and result["content"] == reply
+    assert not shown and not result["streamed"]
+
+
+def test_an_accepted_first_turn_is_streamed(ollama):
+    ollama.replies.append(_ANSWER)
+    shown = []
+
+    result = ChatOrchestrator()._call_ollama_smart_stream(
+        _LLM(), [{"role": "user", "content": _QUESTION}], [], on_token=shown.append,
+        screen=lambda text: not _claims_memory(text))
+
+    assert "".join(shown) == _ANSWER
+    assert result["streamed"] and not result["held"]
+
+
 @pytest.mark.parametrize("text, claims", [
     ("C'est noté ! Ton code de casier est le 4815.", True),
     ("J'ai bien noté ton code de casier : 4815.", True),
@@ -698,6 +730,11 @@ def test_other_syntheses_keep_their_answer(ollama, user_input, used, kept):
      True),
     ("Je peux l'enregistrer si tu le souhaites.", False),
     ("Le code **4815** est donc maintenant bien retenu pour l'avenir.", True),
+    # Réponses directes (premier tour sans outil) de my_ai
+    ("Noté ! Ton vélo **Brompton vert** est un beau choix.", True),
+    ("Noté : ton rendez-vous dentaire est **jeudi à 14h**. 🦷", True),
+    ("Je m'apprends que ton mot de passe est Soleil2024. J'en garde cette information.",
+     True),
     ("J'ai mis à jour ma mémoire avec ce fait personnel.", True),
     ("Il n'est pas encore retenu pour l'avenir.", False),
     ("Je n'ai pas enregistré ce numéro dans ta mémoire.", False),

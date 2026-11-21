@@ -320,11 +320,22 @@ _NOT_MEMORIZED_NOTE = (
     "« j'ai enregistré »."
 )
 _MEMORY_CLAIM = "dit avoir enregistré ce que rien n'a retenu"
+# La même note pour une réponse directe (premier tour, sans outil) refaite : ajoutée
+# au message de l'utilisateur lui-même, elle parle à la première personne. Ces
+# réponses le disaient 16 fois sur 16 (« J'ai noté que ton digicode est 7B42 »,
+# « C'est noté Camille ! Ton train… ») ; refaites avec elle, 0 sur 42 (1 sur 42
+# avec _NOT_MEMORIZED_NOTE, à la troisième personne)
+_NOT_MEMORIZED_USER_NOTE = (
+    "\n\nRien n'a été enregistré dans ta mémoire. Réponds en deux phrases au plus : "
+    "reprends ce que je viens de te dire, puis dis-moi que si je veux que tu t'en "
+    "souviennes, je peux te dire « retiens ça ». N'écris ni « c'est noté », ni « j'ai "
+    "noté », ni « j'ai enregistré »."
+)
 # « C'est noté », « j'ai bien enregistré », « je le retiens », « je vais le garder »,
 # « a été enregistré »… (_claims_memory écarte les phrases niées et les offres)
 _MEMORY_CLAIM_RE = re.compile(
     r"(?<![\w'’])(?:"
-    r"c['’]est (?:bien |donc )?not[ée]|bien not[ée]"
+    r"c['’]est (?:bien |donc )?not[ée]|bien not[ée]|not[ée] ?[!:]|j['’]en garde\b"
     r"|j['’]ai (?:bien |donc |aussi )?(?:not[ée]|enregistr[ée]|m[ée]moris[ée]|sauvegard[ée]"
     r"|pris note|mis à jour (?:ma|mon|ta|la) m[ée]moire)"
     r"|je l['’]ai (?:bien |donc )?(?:not[ée]|enregistr[ée]|m[ée]moris[ée]|sauvegard[ée]"
@@ -359,6 +370,13 @@ _CLAIM_OFFER_RE = re.compile(
     r"|(?:veux|voudrais|souhaites|aimerais|préfères) que)(?![\w'’])",
     re.IGNORECASE,
 )
+
+
+def _gives_information(user_input: str) -> bool:
+    """Le message donne-t-il une information plutôt qu'il ne pose une question ou ne
+    demande quelque chose ? Seule une telle réponse peut être refaite avec la note
+    (_NOT_MEMORIZED_NOTE) : à une question, elle ôterait sa réponse."""
+    return "?" not in user_input and not _REQUEST_START_RE.match(user_input)
 
 
 def _claims_memory(text: str) -> bool:
@@ -898,6 +916,12 @@ class ChatOrchestrator:
                 "enable_thinking": _enable_thinking_this_turn,
                 "thinking_header": "🧠 Analyse :\n",
             }
+            if _stream_direct is not None and memory_kept is not None and (
+                    _gives_information(user_input)):
+                # Une information donnée en passant, sans outil : « C'est noté ! »
+                # (16 réponses sur 16) n'est pas affiché, la réponse est refaite
+                # si rien n'en a été retenu (voir le cas B)
+                call["screen"] = lambda text: not _claims_memory(text)
             response_msg = self._call_ollama_smart_stream(**call)
             if (
                 response_msg is None
@@ -1069,6 +1093,22 @@ class ChatOrchestrator:
                         messages.append({"role": "user", "content": _DOCUMENT_NUDGE})
                         continue
                     if raw_content:
+                        if response_msg.get("held") and memory_kept is not None and (
+                                not memory_kept()):
+                            # Elle dit avoir enregistré ce que rien n'a retenu :
+                            # refaite sans outils, avec la note (rien n'a été
+                            # affiché). Retenu entre-temps, « c'est noté » est vrai
+                            print(
+                                f"⚠️  [ChatOrchestrator] Réponse directe invalide "
+                                f"({_MEMORY_CLAIM}) → refaite (tour {tour + 1})"
+                            )
+                            redone = self._redo_without_claim(
+                                user_input=user_input, llm=llm, system_prompt=system_prompt,
+                                on_token=on_token,
+                                is_interrupted_callback=is_interrupted_callback,
+                            )
+                            if redone:
+                                return redone
                         # Validation (retry uniquement si pas encore streamé)
                         if not _content_was_streamed:
                             valid, reason = self._validate_response(
@@ -1674,6 +1714,31 @@ class ChatOrchestrator:
             print(f"⚠️  [ChatOrchestrator] _retry_without_tools échoué : {exc}")
             return None
 
+    @staticmethod
+    def _redo_without_claim(
+        user_input: str,
+        llm: Any,
+        system_prompt: str,
+        on_token: Optional[Callable],
+        is_interrupted_callback: Optional[Callable],
+    ) -> Optional[str]:
+        """
+        Réponse directe refaite, sans outils, quand elle disait avoir enregistré
+        une information que rien n'a retenue : la note (_NOT_MEMORIZED_USER_NOTE)
+        suit le message, l'historique garde le message seul.
+        """
+        try:
+            return llm.generate_stream(
+                prompt=user_input + _NOT_MEMORIZED_USER_NOTE,
+                system_prompt=drop_tools_section(system_prompt),
+                on_token=on_token,
+                is_interrupted_callback=is_interrupted_callback,
+                history_prompt=user_input,
+            )
+        except Exception as exc:
+            print(f"⚠️  [ChatOrchestrator] réponse non refaite : {exc}")
+            return None
+
     # ──────────────────────────── Compaction du contexte ────────────────────
 
     def _compact_context_if_needed(
@@ -1910,6 +1975,7 @@ class ChatOrchestrator:
         on_thinking_complete: Optional[Callable] = None,
         enable_thinking: bool = False,
         thinking_header: str = "🧠 Analyse :\n",
+        screen: Optional[Callable[[str], bool]] = None,
     ) -> Optional[Dict]:
         """
         Appel Ollama en streaming adaptatif avec détection de tool_calls.
@@ -1931,8 +1997,13 @@ class ChatOrchestrator:
           - Un header (thinking_header) est ajouté avant le 1er token de pensée
           - on_thinking_complete est appelé au 1er token de contenu réel
 
+        screen : juge le début du texte (le tampon, ou toute la réponse si elle
+        est plus courte) avant de l'afficher ; False → rien n'est affiché, la
+        réponse est seulement accumulée (« held »), à l'appelant de la refaire.
+
         Returns:
-            {"content": str, "tool_calls": list, "streamed": bool} ou None
+            {"content": str, "tool_calls": list, "streamed": bool, "held": bool}
+            ou None
         """
         # Active le raisonnement natif uniquement quand le widget peut le recevoir
         # ET que l'appelant l'a explicitement demandé (1er tour ou synthèse).
@@ -1957,6 +2028,7 @@ class ChatOrchestrator:
         tool_calls_collected: List[Dict] = []
         content_buffer: str = ""
         buffer_flushed: bool = False
+        held: bool = False  # début refusé par screen : plus rien n'est affiché
         buffer_chars = 120  # Seuil avant de décider stream vs accumulation
         thinking_header_sent: bool = False
         thinking_complete_fired: bool = False
@@ -2016,8 +2088,9 @@ class ChatOrchestrator:
                             on_thinking_complete()
                         full_content += token
 
-                        if tool_calls_collected:
-                            # Tool calls déjà détectés → pas de streaming
+                        if tool_calls_collected or held:
+                            # Tool calls déjà détectés, ou début refusé → pas de
+                            # streaming
                             pass
                         elif not buffer_flushed:
                             # Phase de buffering initial
@@ -2032,6 +2105,8 @@ class ChatOrchestrator:
                                 if _stripped.startswith(("{", "[")):
                                     # JSON probable → ne pas streamer
                                     pass
+                                elif screen is not None and not screen(content_buffer):
+                                    held = True
                                 else:
                                     # Texte naturel → flush le buffer
                                     buffer_flushed = True
@@ -2053,15 +2128,19 @@ class ChatOrchestrator:
             return None
 
         # Buffer non flushé et pas de tool calls → flush maintenant
-        if content_buffer and not buffer_flushed and not tool_calls_collected:
-            buffer_flushed = True
-            if on_token:
-                on_token(content_buffer)
+        if content_buffer and not buffer_flushed and not tool_calls_collected and not held:
+            if screen is not None and not screen(content_buffer):
+                held = True
+            else:
+                buffer_flushed = True
+                if on_token:
+                    on_token(content_buffer)
 
         return {
             "content": full_content,
             "tool_calls": tool_calls_collected,
             "streamed": buffer_flushed,
+            "held": held,
         }
 
     def _stream_synthesis(
@@ -2140,8 +2219,7 @@ class ChatOrchestrator:
             memory_kept is not None
             and tool_calls_log
             and all(entry.get("tool") == "search_memory" for entry in tool_calls_log)
-            and "?" not in user_input
-            and not _REQUEST_START_RE.match(user_input)
+            and _gives_information(user_input)
             and not memory_kept()
         )
 
