@@ -151,6 +151,24 @@ def test_transformers_5_everywhere_else(platform_name):
     torch = _line(platform_name, "torch").specifier
     assert torch.contains("2.6.0") and torch.contains("2.15.0")
     assert not torch.contains("2.5.1")
+    # transformers 5 n'a plus HybridCache, que peft importe en se chargeant jusqu'à
+    # la 0.17 ; transformers charge peft dès qu'il est installé
+    peft = _line(platform_name, "peft").specifier
+    assert peft.contains("0.18.0") and peft.contains("0.22.0")
+    assert not peft.contains("0.17.1")
+
+
+def test_peft_017_is_reinstalled_with_transformers_5(monkeypatch):
+    # PC à RTX 3060, le 21/11/2026 : transformers 5.23 installé au lancement, peft
+    # 0.17.1 resté en place (« peft>=0.4.0 » satisfait) ; sentence-transformers, et
+    # donc AIEngine, ne s'importaient plus (ImportError sur HybridCache)
+    environment = default_environment()
+    environment.update(PLATFORMS["Windows"])
+    monkeypatch.setattr(markers, "default_environment", lambda: dict(environment))
+    monkeypatch.setattr(sync, "_installed_versions",
+                        lambda: {"peft": "0.17.1", "transformers": "5.23.0"})
+    missing = [line for line in sync.unsatisfied_requirements(TEXT) if line.startswith("peft")]
+    assert missing == ['peft>=0.18.0,<1.0; platform_system != "Darwin" or platform_machine != "x86_64"']
 
 
 def test_too_old_installed_versions_are_reinstalled_at_launch(monkeypatch):

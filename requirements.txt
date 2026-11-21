@@ -159,7 +159,11 @@ transformers>=5.10.0,<6; platform_system != "Darwin" or platform_machine != "x86
 # 5.6.0 : corrige GHSA-jhr6-gm9c-rqjv (charger un modèle depuis un dossier local
 # pouvait exécuter du Python malgré trust_remote_code=False)
 sentence-transformers>=5.6.0,<6; platform_system != "Darwin" or platform_machine != "x86_64"
-peft>=0.4.0,<1.0; platform_system != "Darwin" or platform_machine != "x86_64"
+# 0.18.0 : transformers 5 n'a plus HybridCache, que peft importe en se chargeant
+# jusqu'à la 0.17, et transformers charge peft dès qu'il est installé. Mis à jour
+# vers transformers 5 avec un peft 0.17 resté en place, sentence-transformers ne
+# s'importait plus, ni AIEngine : l'appli ne démarrait plus.
+peft>=0.18.0,<1.0; platform_system != "Darwin" or platform_machine != "x86_64"
 
 # Embeddings & RAG
 chromadb

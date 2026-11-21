@@ -432,13 +432,17 @@ CodeMemory (relay/code_hub.py la reçoit du Relay, avec le modèle) :
 │   il peut retenir une préférence durable, au besoin à la place d'un fait
 │   qu'elle contredit, jamais rien supprimer d'autre. Ce qu'il retient doit
 │   venir de ce que l'utilisateur a écrit (_grounded) ; les mots du message
-│   disent pour quels projets ; rien à retenir ou à oublier : une note
-│   pour le modèle, sans carte
+│   disent pour quels projets (« pour ce projet » ne retire que ceux du
+│   projet) ; rien à retenir ou à oublier : une note pour le modèle, sans carte
 └─ search(...) : outil search_memory, exécuté sur le PC : faits du chat, du
     code et des dossiers ouverts, puis documents (AIEngine.search_memory) ;
     faute de fait correspondant, seuls ceux du code sont proposés
 apply_reading(...) : ce que le modèle a lu, vérifié puis écrit (partagé
-    avec le chat, core/chat_memory.py)
+    avec le chat, core/chat_memory.py). Un fait déjà retenu n'est repris que
+    si le message ou les échanges en parlent ; un renvoi (« retiens ça ») dont
+    rien n'a pu être gardé est relu sur les seuls messages de l'utilisateur
+    (reread) : une réponse qui disait l'information déjà enregistrée faisait
+    recopier au modèle toute la liste des faits
 ```
 
 **`core/chat_memory.py`** - Mémoire dans le chat (fenêtre et téléphone)

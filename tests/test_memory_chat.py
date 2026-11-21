@@ -875,6 +875,48 @@ def test_remember_that_reads_the_previous_exchanges(kb, ollama, monkeypatch):
                                           ("Assistant", "Enchanté, Paul !")]
 
 
+class _MisledReader(_Reader):
+    """Le vrai lecteur après une réponse qui disait l'information déjà enregistrée :
+    toute la liste « Déjà retenu » ; sans les réponses de l'assistant, ce que
+    l'utilisateur venait de dire."""
+
+    def __call__(self, message, context, known, project, asked):
+        self.calls.append({"message": message, "context": context, "known": known,
+                           "asked": asked})
+        if any(who == "Assistant" for who, _text in context):
+            return Reading([value for _where, value in known], [])
+        return Reading(["le code de mon casier est le 4815"], [])
+
+
+def test_remember_that_after_a_wrong_claim_keeps_what_the_user_said(kb, ollama, monkeypatch):
+    """« Retiens ça » après une réponse qui disait l'information déjà enregistrée (le
+    vrai modèle l'écrivait parfois sans que rien ne le soit) : le vrai lecteur
+    recopiait toute la liste « Déjà retenu », soit autant de cartes « Mémorisé » et les
+    faits du code copiés dans le chat, sans retenir le code du casier. Relu sans les
+    réponses de l'assistant, il retient ce que l'utilisateur avait dit."""
+    kb.add_fact("general", key="je fais mes tests avec pytest",
+                value="je fais mes tests avec pytest", source="code", scope="code")
+    kb.add_fact("general", key="Je m'appelle Camille", value="Je m'appelle Camille")
+    reader = _MisledReader({})
+    monkeypatch.setattr(ChatMemoryReader, "for_llm", classmethod(lambda cls, llm: reader))
+    engine, calls = _engine(kb), []
+    said = [("Utilisateur", "Le code de mon casier est le 4815."),
+            ("Assistant", "J'ai enregistré ton code de casier dans ma mémoire persistante !")]
+    engine.local_ai.local_llm.conversation_history = [
+        {"role": "user" if who == "Utilisateur" else "assistant", "content": text}
+        for who, text in said]
+
+    engine.process_query_stream("Retiens ça.", on_token=lambda _token: None,
+                                on_tool_call=lambda name, args: calls.append((name, args)))
+
+    assert sorted((fact["value"], fact["scope"]) for fact in kb.get_all_facts()) == [
+        ("Je m'appelle Camille", "chat"), ("je fais mes tests avec pytest", "code"),
+        ("le code de mon casier est le 4815", "chat")]
+    assert calls == [("remember_fact", {"fact": "le code de mon casier est le 4815"})]
+    assert [call["context"] for call in reader.calls] == [said, said[:1]]
+    assert not ollama.requests
+
+
 def test_a_preference_given_in_passing_is_kept_from_the_chat(kb, ollama, monkeypatch):
     """« Je suis végétarien depuis dix ans », sans « retiens » : lu pendant la réponse,
     et signalé après son texte."""

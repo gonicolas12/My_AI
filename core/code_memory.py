@@ -346,19 +346,29 @@ def _read_prompt(message: str, context: Sequence[Tuple[str, str]],
 _CONFIRM_ASKED_SYSTEM = (
     "Tu tiens la mémoire de My_AI, un assistant personnel. Des informations de la "
     "mémoire de l'utilisateur, numérotées, vont être retirées à cause de son dernier "
-    "message. Pour chacune, réponds true seulement si son message demande de l'oublier "
-    "(il la désigne : « oublie où j'habite », « oublie tout ») ou si ce qu'il demande de "
-    "retenir la rend fausse (même sujet : « j'habite à Nantes » remplace « j'habite à "
-    "Lyon ») ; false si elle parle d'autre chose."
+    "message. Juge chacune à part. Réponds true seulement si son message demande de "
+    "l'oublier (il la désigne : « oublie où j'habite », « oublie tout », « oublie que je "
+    "veux des réponses courtes » pour « tu dois me répondre brièvement ») ou si ce qu'il "
+    "demande de retenir la rend fausse (même sujet : « j'habite à Nantes » remplace "
+    "« j'habite à Lyon ») ; false si elle parle d'autre chose, même d'un sujet voisin "
+    "(« oublie que j'ai une voiture » ne vise pas « mon vélo est rouge »)."
 )
+# « Juge chacune à part » et les deux derniers exemples : avec deux faits à trancher,
+# « oublie que j'ai un chien » retirait « mon chat s'appelle Félix », et « oublie que
+# je veux des réponses en anglais » gardait la consigne de répondre en anglais
+# (34 verdicts justes sur 38, 38 avec)
 _CONFIRM_SPONTANEOUS_SYSTEM = (
     "Tu tiens la mémoire de My_AI, un assistant personnel. Des informations de la "
     "mémoire de l'utilisateur, numérotées, vont être retirées à cause de son dernier "
     "message. Pour chacune, réponds true seulement si son message la rend fausse : il dit "
     "autre chose sur le même sujet (« j'ai déménagé à Nantes » rend fausse « j'habite à "
-    "Lyon »). Réponds false si elle parle d'autre chose, même s'il dit quelque chose de "
-    "nouveau sur lui."
+    "Lyon » ; « je code maintenant sous VS Code » rend fausse « j'utilise PyCharm » : deux "
+    "outils pour le même usage). Réponds false si elle parle d'autre chose, même s'il dit "
+    "quelque chose de nouveau sur lui."
 )
+# L'exemple des outils : sans lui, le second appel gardait « j'utilise black » pour
+# « maintenant je formate avec ruff », et de même jest pour vitest, ou des commits en
+# anglais pour des commits en français (16 cas sur 20 tranchés juste, 19 avec)
 
 
 def _confirm_prompt(message: str, new: Sequence[str], candidates: Sequence[str],
@@ -598,6 +608,15 @@ class MemoryUpdate:
         return f"{note} Confirme-le-lui en une phrase{example}.{then}{hidden}"
 
 
+def rereader(reader: Any, message: str, known: Sequence[Tuple[str, str]],
+             project: str) -> Optional[Callable[[Sequence[Tuple[str, str]]], Reading]]:
+    """La lecture d'une demande par reader (MemoryReader), à refaire sur d'autres
+    échanges (apply_reading, reread) ; None sans modèle."""
+    if reader is None:
+        return None
+    return lambda exchanges: reader(message, list(exchanges), known, project, True)
+
+
 def _confirmed(confirm: Callable[..., List[bool]], message: str, kept: Sequence[str],
                forget: List[Dict[str, Any]], asked: bool, label: str) -> List[Dict[str, Any]]:
     """
@@ -631,7 +650,9 @@ def apply_reading(kb: Any, message: str, reading: Reading, known: Sequence[Dict[
                   rules: Optional[Callable[[str], Tuple[Optional[str], str]]] = None,
                   source: str = "code", wanted: Optional[Callable[[], bool]] = None,
                   label: str = "Conversation Code",
-                  confirm: Optional[Callable[..., List[bool]]] = None) -> Optional[MemoryUpdate]:
+                  confirm: Optional[Callable[..., List[bool]]] = None,
+                  reread: Optional[Callable[[Sequence[Tuple[str, str]]], Reading]] = None,
+                  ) -> Optional[MemoryUpdate]:
     """
     Ce que le modèle a lu d'un message (reading), vérifié puis écrit dans la base :
     pour la conversation Code (CodeMemory.update) ou pour le chat
@@ -644,6 +665,9 @@ def apply_reading(kb: Any, message: str, reading: Reading, known: Sequence[Dict[
     tous les projets). source : la colonne source des faits ; label : les journaux.
     confirm(message, retenus, faits, asked) → [bool] : chaque fait que le modèle
     retirerait est-il bien visé (MemoryReader.confirm) ? Sans lui, retirés tels quels.
+    reread(échanges) → Reading : la même lecture, sur d'autres échanges ; un renvoi
+    (« retiens ça ») dont rien n'a pu être gardé est relu sur les seuls messages de
+    l'utilisateur.
     """
     facts = list(reading.remember)
     # « Retiens ceci : … » : le bloc en entier, avec ses mots (une procédure, des
@@ -663,16 +687,47 @@ def apply_reading(kb: Any, message: str, reading: Reading, known: Sequence[Dict[
     if asked:
         sources += [text for _who, text in context]
         sources += [str(fact.get("value") or "") for fact in known]
-    kept: List[str] = []
-    for written in facts:
-        fact = _known_wording(written, known)
-        if written != block and _DONE_TASK_RE.match(fact):
-            logger.info("%s : « %s » est une tâche, pas retenu", label, fact[:80])
-        elif not _grounded(fact, sources, strict=not asked):
-            logger.info("%s : « %s » ne vient pas de l'utilisateur, pas retenu",
-                    label, fact[:80])
-        elif _loose(fact) not in {_loose(other) for other in kept}:
-            kept.append(fact)
+    # Un fait déjà retenu n'est repris que si le message ou les échanges en parlent
+    # (« retiens-le pour tous mes projets », juste après l'avoir fait retenir).
+    # Après une réponse qui disait l'information déjà enregistrée, le vrai modèle
+    # recopiait sinon toute la liste « Déjà retenu » pour « retiens ça » : cinq
+    # cartes « Mémorisé », et les faits du code copiés dans le chat
+    said = [message] + [text for _who, text in context]
+    retained = {_loose(str(fact.get("value") or "")) for fact in known}
+
+    def keep(candidates: Sequence[str]) -> List[str]:
+        kept: List[str] = []
+        for written in candidates:
+            fact = _known_wording(written, known)
+            if written != block and _DONE_TASK_RE.match(fact):
+                logger.info("%s : « %s » est une tâche, pas retenu", label, fact[:80])
+            elif not _grounded(fact, sources, strict=not asked):
+                logger.info("%s : « %s » ne vient pas de l'utilisateur, pas retenu",
+                            label, fact[:80])
+            elif _loose(fact) in retained and not _grounded(fact, said):
+                logger.info("%s : « %s » est déjà retenu, et ni le message ni les échanges "
+                            "n'en parlent : pas repris", label, fact[:80])
+            elif _loose(fact) not in {_loose(other) for other in kept}:
+                kept.append(fact)
+        return kept
+
+    kept = keep(facts)
+    if (asked and not kept and reread is not None
+            and only_asks_to_remember(_without_scope(message))):
+        # « Retiens ça » dont le modèle n'a rien tiré : relu sur ce que l'utilisateur
+        # a dit, sans les réponses de l'assistant, qui l'égaraient (« c'est
+        # enregistré », écrit sans que rien ne le soit)
+        own = [(who, text) for who, text in context if who == "Utilisateur"]
+        if own and len(own) < len(context):
+            try:
+                reading = reread(own)
+            except Exception as exc:  # pylint: disable=broad-except
+                logger.warning("%s : renvoi non relu (%s)", label, exc)
+            else:
+                logger.info("%s : renvoi relu sans les réponses de l'assistant : retenir %s",
+                            label, [fact[:60] for fact in reading.remember])
+                facts = list(reading.remember)
+                kept = keep(facts)
     if asked and not kept and (facts or not reading.forget):
         # Le modèle n'a rien lu de retenable là où il fallait : les règles
         fact, rule_scope = rules(message) if rules else (None, scope)
@@ -850,22 +905,30 @@ class CodeMemory:
         known = self._kb.code_facts(roots)
         shown = sorted(known, key=lambda fact: str(fact.get("updated_at") or ""))
         shown = shown[-_MAX_KNOWN_FACTS:]
+        lines, name = _known_lines(shown), project_name(project) if project else ""
         reading = Reading()
         if reader is not None:
             try:
-                reading = reader(message, list(context) if asked else [], _known_lines(shown),
-                                 project_name(project) if project else "", asked)
+                reading = reader(message, list(context) if asked else [], lines, name, asked)
                 logger.info("Conversation Code : mémoire lue par le modèle (%s) : retenir %s, "
                             "oublier %s", "demande" if asked else "sans demande",
                             [fact[:60] for fact in reading.remember], reading.forget)
             except Exception as exc:  # pylint: disable=broad-except
                 logger.warning("Conversation Code : le modèle n'a pas lu la mémoire (%s)", exc)
                 reading = Reading()
+        if asked and _THIS_PROJECT_RE.search(message):
+            # « Oublie tout ce que tu as retenu pour ce projet » : ce qui vaut pour tous
+            # ses projets reste. Le vrai modèle le retirait aussi, et le second appel,
+            # qui ne voit pas pour quoi vaut chaque fait, le confirmait
+            reading.forget = [number for number in reading.forget
+                              if 1 <= number <= len(shown)
+                              and fact_scope(shown[number - 1])[0] == SCOPE_PROJECT]
         scope = SCOPE_CODE if _ALL_PROJECTS_RE.search(message) else SCOPE_PROJECT
         return apply_reading(self._kb, message, reading, known, shown, asked=asked,
                              scope=scope, project=project, context=context,
                              rules=lambda text: remember_request(text)[:2], source="code",
-                             wanted=wanted, confirm=getattr(reader, "confirm", None))
+                             wanted=wanted, confirm=getattr(reader, "confirm", None),
+                             reread=rereader(reader, message, lines, name))
 
     def search(self, query: str, n_results: int = 5, document: str = "",
                roots: Sequence[str] = ()) -> str:
