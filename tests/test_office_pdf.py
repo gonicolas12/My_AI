@@ -10,12 +10,16 @@ HTML en montre les pages en images. Sans l'un ni l'autre, le rendu HTML reste.
 
 Office ouvre le fichier sans macros ni dialogue ; une instance de Word ou de
 PowerPoint déjà lancée (par l'utilisateur, ou pour la visionneuse) n'est jamais
-quittée, un document qu'il a ouvert jamais fermé.
+quittée, un document qu'il a ouvert jamais fermé. Excel met en page pour
+« Microsoft Print to PDF » ; bloqué, l'instance lancée pour l'export est fermée
+passé le délai, jamais un Excel de l'utilisateur.
 """
 
 import os
 import subprocess
+import sys
 import time
+import types
 
 import pytest
 
@@ -377,6 +381,7 @@ class FakeSheet:
 class FakeWorkbook:
     def __init__(self, log, sheets):
         self.log = log
+        self.opened = False
         sheets_list = list(sheets)
         self.Worksheets = type("Sheets", (), {  # pylint: disable=invalid-name
             "Count": len(sheets_list), "Item": lambda _self, index: sheets_list[index - 1]})()
@@ -391,21 +396,39 @@ class FakeWorkbook:
         self.log.append(("close", save))
 
 
+PRINTER = "HP LaserJet @ iMac sur Ne01:"  # celle de Windows, telle qu'Excel la nomme
+
+
 class FakeExcel:
     def __init__(self, sheets):
         self.log = []
         self.AutomationSecurity = 1  # pylint: disable=invalid-name
         self.PrintCommunication = True  # pylint: disable=invalid-name
         self.workbook = FakeWorkbook(self.log, sheets)
+        self.printer = PRINTER
         excel = self
 
         class Workbooks:  # pylint: disable=too-few-public-methods
             @staticmethod
             def Open(*args):  # pylint: disable=invalid-name
                 excel.log.append(("open", args, excel.AutomationSecurity, excel.DisplayAlerts))
+                excel.workbook.opened = True
                 return excel.workbook
 
         self.Workbooks = Workbooks()  # pylint: disable=invalid-name
+
+    @property
+    def ActivePrinter(self):  # pylint: disable=invalid-name
+        return self.printer
+
+    @ActivePrinter.setter
+    def ActivePrinter(self, name):  # pylint: disable=invalid-name
+        # Comme Excel : refusée sans classeur ouvert, ou sous une autre forme que la sienne
+        # (Office en français : « sur », le port du registre)
+        if not self.workbook.opened or name != "Microsoft Print to PDF sur Ne00:":
+            raise OSError("Impossible de définir la propriété ActivePrinter")
+        self.log.append(("printer", name))
+        self.printer = name
 
     def Quit(self):  # pylint: disable=invalid-name
         self.log.append(("quit",))
@@ -431,6 +454,69 @@ def test_excel_prints_each_sheet_one_page_wide_with_its_grid(monkeypatch, tmp_pa
     assert app.PrintCommunication is True
     # Instance à part : toujours quittée, même si Excel tournait déjà
     assert log[-3:] == [("export", 0), ("close", False), ("quit",)]
+
+
+def test_excel_lays_out_its_pages_for_the_pdf_printer(monkeypatch, tmp_path):
+    # Celle de Windows peut être une imprimante réseau éteinte : Excel attendait chaque
+    # réglage de la mise en page (20 s), puis l'export ouvrait « Choix de l'imprimante »
+    monkeypatch.setattr(office_pdf, "_printer_port", lambda name: "Ne00:")
+    laid_out = []
+    monkeypatch.setattr(office_pdf, "_fit_sheets",
+                        lambda app, workbook: laid_out.append(app.printer))
+    app = FakeExcel([FakeSheet(rows=20)])
+    # pylint: disable-next=protected-access
+    log = _run(office_pdf._export_excel, app, "Excel.Application", False, monkeypatch, tmp_path,
+               source=r"C:\docs\bilan.xlsx")
+    # Le classeur ouvert d'abord (Excel refuse avant), puis la mise en page et l'export
+    assert [entry[0] for entry in log] == ["open", "printer", "export", "close", "quit"]
+    assert laid_out == ["Microsoft Print to PDF sur Ne00:"]  # le mot d'Office : « sur »
+    # Sans elle (retirée de Windows), ou refusée : l'imprimante de Windows, l'export essaie
+    for port in (None, "Ne07:"):
+        monkeypatch.setattr(office_pdf, "_printer_port", lambda name, port=port: port)
+        app = FakeExcel([FakeSheet(rows=20)])
+        # pylint: disable-next=protected-access
+        log = _run(office_pdf._export_excel, app, "Excel.Application", False, monkeypatch,
+                   tmp_path, source=r"C:\docs\bilan.xlsx")
+        assert ("export", 0) in log and app.printer == PRINTER
+
+
+def test_a_stuck_excel_is_closed_after_the_delay(tmp_path, monkeypatch):
+    psutil = pytest.importorskip("psutil")
+    # Bloqué devant « Choix de l'imprimante », que personne ne voit, Excel ne rendait
+    # jamais la main et son instance restait ouverte après le délai. Deux processus
+    # tiennent lieu d'Excel : celui de l'export, et un que l'utilisateur a ouvert
+    sleeper = [sys.executable, "-c", "import time; time.sleep(60)"]
+    with subprocess.Popen(sleeper) as excel, subprocess.Popen(sleeper) as mine:
+        try:
+            def stuck(client, *_):
+                client.CreateObject("Excel.Application")
+                while excel.poll() is None:  # ExportAsFixedFormat, devant le dialogue
+                    time.sleep(0.05)
+                raise OSError("Le serveur RPC n'est pas disponible")
+
+            com, client = types.ModuleType("comtypes"), types.ModuleType("comtypes.client")
+            com.CoInitialize = com.CoUninitialize = lambda: None
+            client.CreateObject = lambda progid: object()
+            com.client = client
+            monkeypatch.setitem(sys.modules, "comtypes", com)
+            monkeypatch.setitem(sys.modules, "comtypes.client", client)
+            monkeypatch.setattr(office_pdf, "office_installed", lambda kind: True)
+            # pylint: disable-next=protected-access
+            monkeypatch.setitem(office_pdf._EXPORTERS, "excel", stuck)
+            monkeypatch.setattr(office_pdf, "_excel_process",
+                                lambda app: psutil.Process(excel.pid))
+            monkeypatch.setattr(office_pdf, "EXPORT_TIMEOUT", 1.0)
+            started = time.monotonic()
+            with pytest.raises(TimeoutError, match="son instance a été fermée"):
+                # pylint: disable-next=protected-access
+                office_pdf._with_office("excel", str(tmp_path / "bilan.xlsx"),
+                                        tmp_path / "sortie.pdf")
+            assert time.monotonic() - started < 10
+            # L'instance de l'export fermée, celle de l'utilisateur intacte
+            assert excel.wait(5) is not None and mine.poll() is None
+        finally:
+            excel.kill()
+            mine.kill()
 
 
 # ── Fenêtre : le lecteur PDF quand la visionneuse manque ───────────────────
@@ -493,11 +579,22 @@ def test_real_office_exports_the_document(docs, cache, fmt, kind, pages):
     pymupdf = pytest.importorskip("pymupdf")
     if not office_pdf.office_installed(kind):
         pytest.skip(f"{kind} absent")
+    found = []
+
+    def spy(app, real=office_pdf._excel_process):  # pylint: disable=protected-access
+        found.append(real(app))
+        return found[-1]
+
     before = _pids(kind)
-    made = office_pdf.office_pdf(docs[fmt])
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(office_pdf, "_excel_process", spy)
+        made = office_pdf.office_pdf(docs[fmt])
     assert made, f"{kind} n'a pas exporté le document"
     with pymupdf.open(made) as document:
         assert document.page_count >= pages
+    if kind == "excel":
+        # L'instance à fermer s'il bloque, repérée par sa fenêtre : celle de l'export
+        assert found and found[0] is not None and found[0].pid not in before
     # Rien de lancé pour l'export ne reste derrière lui
     deadline = time.monotonic() + 15
     while _pids(kind) - before and time.monotonic() < deadline:
