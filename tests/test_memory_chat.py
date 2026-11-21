@@ -24,6 +24,7 @@ import types
 
 import pytest
 
+import core.chat_memory as chat_memory
 import core.chat_orchestrator as chat_orchestrator
 from core.ai_engine import AIEngine
 from core.chat_orchestrator import ChatOrchestrator
@@ -1058,6 +1059,84 @@ def test_a_question_is_not_kept_as_an_instruction(kb):
 
     assert sorted(fact["value"] for fact in kb.get_all_facts()) == [
         "tu dois me tutoyer", "tu dois toujours faire des réponses courtes"]
+
+
+def test_a_fact_about_the_user_keeps_the_user_words(kb):
+    """Sans demande, le vrai modèle écrivait à la deuxième personne ce qu'il dit de lui,
+    en reprenant le « tu » de sa question : « tu travailles de nuit », « tu parles
+    couramment espagnol ». Le fait passait pour une consigne pour l'IA, écartée d'une
+    question : il est repris de son message. Une consigne (« je préfère que tu me
+    tutoies ») reste une consigne, et une demande du moment reste écartée."""
+    reader = _Reader({
+        "Je travaille de nuit, tu as des conseils pour dormir ?": (
+            ["tu travailles de nuit", "tu dois me donner des conseils pour dormir"], []),
+        "Je parle couramment espagnol. Tu me conseilles un roman en espagnol ?": (
+            ["tu parles espagnol"], []),
+        "Mon fils s'appelle Hugo. Tu as une idée de cadeau pour ses dix ans ?": (
+            ["ton fils s'appelle Hugo"], []),
+        "Je préfère que tu me tutoies.": (["tu me tutoies"], []),
+    })
+    memory = ChatMemory(kb, reader=lambda _llm: reader)
+    llm = {"chat_url": "http://127.0.0.1:9/api/chat", "model": "my_ai", "num_ctx": 2048}
+
+    for message in reader.answers:
+        memory.update(message, (), llm, False)
+
+    assert sorted(fact["value"] for fact in kb.get_all_facts()) == [
+        "je parle couramment espagnol", "je travaille de nuit", "mon fils s'appelle Hugo",
+        "tu me tutoies"]
+
+
+def test_a_message_read_as_a_request_only_is_read_again_without_its_question(kb):
+    """Le vrai modèle ne tirait parfois de « Je travaille de nuit, tu as des conseils pour
+    dormir ? » que sa demande du moment, écartée : le message est relu sans sa question.
+    Pas de seconde lecture quand rien n'a été lu, ni sans rien qu'il dise de lui."""
+    reader = _Reader({
+        "Je travaille de nuit, tu as des conseils pour dormir ?": (
+            ["tu dois me donner des conseils pour dormir"], []),
+        "Je travaille de nuit.": (["je travaille de nuit"], []),
+        "J'ai mal à la tête aujourd'hui, tu as un conseil ?": ([], []),
+        "Tu parles espagnol ?": (["tu dois me répondre en espagnol"], []),
+    })
+    memory = ChatMemory(kb, reader=lambda _llm: reader)
+    llm = {"chat_url": "http://127.0.0.1:9/api/chat", "model": "my_ai", "num_ctx": 2048}
+
+    for message in ("Je travaille de nuit, tu as des conseils pour dormir ?",
+                    "J'ai mal à la tête aujourd'hui, tu as un conseil ?", "Tu parles espagnol ?"):
+        memory.update(message, (), llm, False)
+
+    assert [call["message"] for call in reader.calls] == [
+        "Je travaille de nuit, tu as des conseils pour dormir ?", "Je travaille de nuit.",
+        "J'ai mal à la tête aujourd'hui, tu as un conseil ?", "Tu parles espagnol ?"]
+    assert [fact["value"] for fact in kb.get_all_facts()] == ["je travaille de nuit"]
+
+
+@pytest.mark.parametrize("fact, message, kept", [
+    ("tu es végétarien", "Je suis végétarien depuis dix ans. Une recette ?", "je suis végétarien"),
+    ("tu as deux bergers australiens", "J'ai deux bergers australiens. Quels jeux ?",
+     "j'ai deux bergers australiens"),
+    ("tu vas au travail à vélo", "Je vais au travail à vélo, des conseils pour l'hiver ?",
+     "je vais au travail à vélo"),
+    ("tu t'appelles Camille", "Moi, je m'appelle Camille.", "je m'appelle Camille"),
+    # Reformulé : les deux tiers de ses mots suffisent
+    ("tu travailles en télétravail toute la semaine",
+     "Je suis en télétravail toute la semaine, tu as des astuces pour rester concentré ?",
+     "je suis en télétravail toute la semaine"),
+    # Ni un autre sujet, ni ce que le message ne dit pas
+    ("tu dois me donner des conseils pour dormir",
+     "J'ai besoin de conseils pour dormir, tu as des idées ?",
+     "tu dois me donner des conseils pour dormir"),
+    ("tu t'appelles Jarvis", "Retiens que mon assistant s'appelle Jarvis.",
+     "tu t'appelles Jarvis"),
+    ("tu dois me répondre en espagnol", "Je veux que tu me répondes en espagnol.",
+     "tu dois me répondre en espagnol"),
+    ("je suis kiné", "je suis kiné, tu connais des étirements ?", "je suis kiné"),
+])
+def test_a_fact_in_the_second_person_takes_the_user_words(fact, message, kept):
+    """La proposition du message, à la première personne, qui emploie ses mots : le
+    verbe change de forme (« tu es », « je suis »), il reformule parfois ; pas un autre
+    sujet, ni une consigne pour l'IA."""
+    assert chat_memory._in_own_words(fact, message) == kept
 
 
 def test_a_code_is_kept_only_on_request(kb):
