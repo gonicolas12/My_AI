@@ -1087,6 +1087,30 @@ def test_a_fact_about_the_user_keeps_the_user_words(kb):
         "tu me tutoies"]
 
 
+def test_a_message_read_as_a_request_only_is_read_again_without_its_question(kb):
+    """Le vrai modèle ne tirait parfois de « Je travaille de nuit, tu as des conseils pour
+    dormir ? » que sa demande du moment, écartée : le message est relu sans sa question.
+    Pas de seconde lecture quand rien n'a été lu, ni sans rien qu'il dise de lui."""
+    reader = _Reader({
+        "Je travaille de nuit, tu as des conseils pour dormir ?": (
+            ["tu dois me donner des conseils pour dormir"], []),
+        "Je travaille de nuit.": (["je travaille de nuit"], []),
+        "J'ai mal à la tête aujourd'hui, tu as un conseil ?": ([], []),
+        "Tu parles espagnol ?": (["tu dois me répondre en espagnol"], []),
+    })
+    memory = ChatMemory(kb, reader=lambda _llm: reader)
+    llm = {"chat_url": "http://127.0.0.1:9/api/chat", "model": "my_ai", "num_ctx": 2048}
+
+    for message in ("Je travaille de nuit, tu as des conseils pour dormir ?",
+                    "J'ai mal à la tête aujourd'hui, tu as un conseil ?", "Tu parles espagnol ?"):
+        memory.update(message, (), llm, False)
+
+    assert [call["message"] for call in reader.calls] == [
+        "Je travaille de nuit, tu as des conseils pour dormir ?", "Je travaille de nuit.",
+        "J'ai mal à la tête aujourd'hui, tu as un conseil ?", "Tu parles espagnol ?"]
+    assert [fact["value"] for fact in kb.get_all_facts()] == ["je travaille de nuit"]
+
+
 @pytest.mark.parametrize("fact, message, kept", [
     ("tu es végétarien", "Je suis végétarien depuis dix ans. Une recette ?", "je suis végétarien"),
     ("tu as deux bergers australiens", "J'ai deux bergers australiens. Quels jeux ?",

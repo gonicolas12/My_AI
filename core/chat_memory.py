@@ -249,6 +249,58 @@ def _in_own_words(fact: str, message: str) -> str:
     return fact
 
 
+def _said_of_himself(message: str) -> str:
+    """Ce que son message dit de lui, sans sa question : ses propositions qui commencent
+    par « je » ou « mon, ma, mes », sans « tu » (« Je travaille de nuit, tu as des
+    conseils pour dormir ? » → « Je travaille de nuit. »)."""
+    said = [clause.strip() for clause in _CLAUSE_END_RE.split(message)]
+    said = [clause for clause in said
+            if any(me_re.match(clause) for _you_re, me_re in _PERSONS)
+            and not _SECOND_PERSON_WORD_RE.search(clause)]
+    return " ".join(clause + "." for clause in said)
+
+
+def _read(reader: Any, text: str, message: str, context: Sequence[Tuple[str, str]],
+          lines: Sequence[Tuple[str, str]], asked: bool, how: str) -> Reading:
+    """Ce que le modèle lit de text (le message, ou ce qu'il dit de lui), ce qu'il dit de
+    lui repris des mots de message (_in_own_words) ; rien sans modèle, ou s'il échoue."""
+    if reader is None:
+        return Reading()
+    try:
+        reading = reader(text, list(context), lines, "", asked)
+    except Exception as exc:  # pylint: disable=broad-except
+        logger.warning("Chat : le modèle n'a pas lu la mémoire (%s)", exc)
+        return Reading()
+    logger.info("Chat : mémoire lue par le modèle (%s) : retenir %s, oublier %s", how,
+                [fact[:60] for fact in reading.remember], reading.forget)
+    for index, fact in enumerate(reading.remember):
+        own = _in_own_words(fact, message)
+        if own != fact:
+            logger.info("Chat : « %s » repris de son message : « %s »", fact[:80], own[:80])
+            reading.remember[index] = own
+    return reading
+
+
+def _drop_unwanted(reading: Reading, message: str) -> List[str]:
+    """
+    Sans demande, retire de reading ce qui ne se retient pas : une consigne tirée d'une
+    question qui ne la dit pas durable (sa demande du moment), un code ou un mot de
+    passe. Renvoie ses demandes du moment.
+    """
+    question = "?" in message and not _LASTING_RE.search(message)
+    momentary = []
+    for fact in list(reading.remember):
+        if question and is_assistant_fact(fact):
+            logger.info("Chat : « %s » est sa demande du moment, pas une consigne : "
+                        "pas retenu", fact[:80])
+            reading.remember.remove(fact)
+            momentary.append(fact)
+        elif _SECRET_RE.search(fact):
+            logger.info("Chat : « %s » est un code, retenu seulement sur demande", fact[:80])
+            reading.remember.remove(fact)
+    return momentary
+
+
 class ChatMemory:
     """Ce qu'un message du chat change dans la mémoire de My_AI."""
 
@@ -301,32 +353,20 @@ class ChatMemory:
         shown = sorted(known, key=lambda fact: str(fact.get("updated_at") or ""))
         shown = shown[-_MAX_KNOWN_FACTS:]
         lines = _known_lines(shown)
-        reading = Reading()
-        if reader is not None:
-            try:
-                reading = reader(message, list(context) if asked else [], lines, "", asked)
-                logger.info("Chat : mémoire lue par le modèle (%s) : retenir %s, oublier %s",
-                            "demande" if asked else "sans demande",
-                            [fact[:60] for fact in reading.remember], reading.forget)
-            except Exception as exc:  # pylint: disable=broad-except
-                logger.warning("Chat : le modèle n'a pas lu la mémoire (%s)", exc)
-                reading = Reading()
-        for index, fact in enumerate(reading.remember):
-            own = _in_own_words(fact, message)
-            if own != fact:
-                logger.info("Chat : « %s » repris de son message : « %s »", fact[:80], own[:80])
-                reading.remember[index] = own
+        reading = _read(reader, message, message, list(context) if asked else [], lines, asked,
+                        "demande" if asked else "sans demande")
         if not asked:
-            question = "?" in message and not _LASTING_RE.search(message)
-            for fact in list(reading.remember):
-                if question and is_assistant_fact(fact):
-                    logger.info("Chat : « %s » est sa demande du moment, pas une consigne : "
-                                "pas retenu", fact[:80])
-                    reading.remember.remove(fact)
-                elif _SECRET_RE.search(fact):
-                    logger.info("Chat : « %s » est un code, retenu seulement sur demande",
-                                fact[:80])
-                    reading.remember.remove(fact)
+            momentary = _drop_unwanted(reading, message)
+            said = _said_of_himself(message) if momentary and not reading.remember else ""
+            if len(said.split()) >= _MIN_SPONTANEOUS_WORDS:
+                # « Je travaille de nuit, tu as des conseils pour dormir ? » : le modèle
+                # n'en tirait parfois que sa demande du moment (« tu dois me donner des
+                # conseils pour dormir »), écartée. Relu sans sa question, il ne reste
+                # que ce qu'il dit de lui (« Je travaille de nuit. »)
+                again = _read(reader, said, message, [], lines, False, "relu sans sa question")
+                _drop_unwanted(again, message)
+                if again.remember:
+                    reading = again
         return apply_reading(
             self._kb, message, reading, known, shown, asked=asked, scope=SCOPE_CHAT,
             context=context, rules=lambda text: (extract_remember_request(text), SCOPE_CHAT),
