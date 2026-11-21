@@ -28,6 +28,7 @@ from core.knowledge_base_manager import (
     SCOPE_PROJECT,
     asks_to_forget,
     asks_to_remember,
+    content_words,
     extract_remember_request,
     fact_scope,
     is_assistant_fact,
@@ -64,6 +65,21 @@ _SECRET_RE = re.compile(
     r"(?!\s+postal))(?![\w'’])",
     re.IGNORECASE,
 )
+# Ce qu'il dit de lui, le modèle l'écrivait parfois à la deuxième personne, en
+# reprenant le « tu » de sa question : « tu travailles de nuit » de « Je travaille de
+# nuit, tu as des conseils pour dormir ? », « tu parles couramment espagnol » de « Je
+# parle couramment espagnol. Tu me conseilles un roman en espagnol ? ». Le fait
+# passait pour une consigne pour l'IA, écartée d'une question : il est repris de son
+# message (_in_own_words). Sujet du fait, et ce qui lui répond dans le message
+_PERSONS = (
+    (re.compile(r"(?:tu\b|t['’])", re.IGNORECASE),
+     re.compile(r"(?<![\w'’])(?:je\b|j['’])", re.IGNORECASE)),
+    (re.compile(r"(?:ton|ta|tes)\b", re.IGNORECASE),
+     re.compile(r"(?<![\w'’])(?:mon|ma|mes)\b", re.IGNORECASE)),
+)
+_SECOND_PERSON_WORD_RE = re.compile(r"(?<![\w'’])(?:(?:tu|te|toi|ton|ta|tes)\b|t['’])",
+                                    re.IGNORECASE)
+_CLAUSE_END_RE = re.compile(r"[.!?;:,()\[\]«»\"“”\n]+")
 
 _CHAT_ASKED_SYSTEM = (
     "Tu tiens la mémoire de My_AI, un assistant personnel. Le dernier message de "
@@ -188,6 +204,43 @@ def _known_lines(known: Sequence[Dict[str, Any]]) -> List[Tuple[str, str]]:
     return lines
 
 
+def _in_own_words(fact: str, message: str) -> str:
+    """
+    fact, écrit à la deuxième personne (« tu travailles de nuit », « ton fils s'appelle
+    Hugo »), tel que son message le dit à la première (« Je travaille de nuit, tu as des
+    conseils pour dormir ? » → « je travaille de nuit ») : du sujet (« je », « mon »…)
+    jusqu'au dernier des mots du fait qu'il y emploie, dans la même proposition et
+    avant tout « tu » (« je veux que tu me répondes en anglais » reste une consigne).
+    Il doit y employer les deux tiers au moins des mots qui comptent du fait. Sinon,
+    fact tel quel.
+    """
+    for you_re, me_re in _PERSONS:
+        if you_re.match(fact):
+            break
+    else:
+        return fact
+    # « tu es », « tu as » : des mots trop courts pour compter ; « tu vas », « je vais »
+    wanted = {"vai" if word == "vas" else word for word in content_words(fact)}
+    if not wanted:
+        return fact
+    for clause in _CLAUSE_END_RE.split(message):
+        for subject in me_re.finditer(clause):
+            said = clause[subject.start():]
+            you = _SECOND_PERSON_WORD_RE.search(said)
+            if you is not None:
+                said = said[:you.start()]
+            # Les deux tiers de ses mots au moins : il reformule parfois (« tu
+            # travailles en télétravail » de « je suis en télétravail »)
+            found = wanted & set(content_words(said))
+            if 3 * len(found) < 2 * len(wanted):
+                continue
+            for word in re.finditer(r"\S+", said):
+                words = said[:word.end()]
+                if found <= set(content_words(words)):
+                    return words[:1].lower() + words[1:]
+    return fact
+
+
 class ChatMemory:
     """Ce qu'un message du chat change dans la mémoire de My_AI."""
 
@@ -250,6 +303,11 @@ class ChatMemory:
             except Exception as exc:  # pylint: disable=broad-except
                 logger.warning("Chat : le modèle n'a pas lu la mémoire (%s)", exc)
                 reading = Reading()
+        for index, fact in enumerate(reading.remember):
+            own = _in_own_words(fact, message)
+            if own != fact:
+                logger.info("Chat : « %s » repris de son message : « %s »", fact[:80], own[:80])
+                reading.remember[index] = own
         if not asked:
             question = "?" in message and not _LASTING_RE.search(message)
             for fact in list(reading.remember):
