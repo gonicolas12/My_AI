@@ -27,7 +27,7 @@ import pytest
 import core.chat_orchestrator as chat_orchestrator
 from core.ai_engine import AIEngine
 from core.chat_orchestrator import ChatOrchestrator
-from core.chat_memory import ChatMemoryReader
+from core.chat_memory import ChatMemory, ChatMemoryReader
 from core.code_memory import MemoryUpdate, Reading, Remembered
 from core.knowledge_base_manager import KnowledgeBaseManager
 from core.modelfile import with_modelfile
@@ -969,6 +969,94 @@ def test_information_given_in_passing_is_not_said_to_be_saved(kb, ollama, monkey
     assert vegetarian == "C'est noté, tu es végétarien !"
     assert [fact["value"] for fact in kb.get_all_facts()] == ["je suis végétarien depuis dix ans"]
     assert not ollama.replies
+
+
+def test_a_question_is_not_kept_as_an_instruction(kb):
+    """Sans demande, « tu dois… » tiré d'une question qui ne le dit pas durable est sa
+    demande du moment : « tu as des conseils pour dormir ? » donnait « tu dois me
+    donner des conseils pour dormir ». Une consigne durable, ou affirmée, reste."""
+    reader = _Reader({
+        "Je travaille de nuit, tu as des conseils pour dormir ?": (
+            ["tu dois me donner des conseils pour dormir"], []),
+        "Fais toujours des réponses courtes. Combien de temps pour cuire un œuf ?": (
+            ["tu dois toujours faire des réponses courtes"], []),
+        "Tu dois me tutoyer, s'il te plaît.": (["tu dois me tutoyer"], []),
+    })
+    memory = ChatMemory(kb, reader=lambda _llm: reader)
+    llm = {"chat_url": "http://127.0.0.1:9/api/chat", "model": "my_ai", "num_ctx": 2048}
+
+    for message in reader.answers:
+        memory.update(message, (), llm, False)
+
+    assert sorted(fact["value"] for fact in kb.get_all_facts()) == [
+        "tu dois me tutoyer", "tu dois toujours faire des réponses courtes"]
+
+
+def test_a_code_is_kept_only_on_request(kb):
+    """Sans demande, ni code ni mot de passe : le vrai modèle retenait celui d'un message
+    quand aucun autre fait n'était connu. « Je code en Python » reste, et « retiens ça »
+    garde le code (core/code_memory.py, apply_reading)."""
+    reader = _Reader({
+        "Le code de mon casier à la salle de sport est le 4815.": (
+            ["le code de mon casier à la salle de sport est le 4815"], []),
+        "Le mot de passe du wifi de chez moi est Soleil2024.": (
+            ["le mot de passe du wifi de chez moi est Soleil2024"], []),
+        "Je code en Python depuis 2015, c'est mon métier.": (
+            ["je code en Python depuis 2015"], []),
+    })
+    memory = ChatMemory(kb, reader=lambda _llm: reader)
+    llm = {"chat_url": "http://127.0.0.1:9/api/chat", "model": "my_ai", "num_ctx": 2048}
+
+    for message in reader.answers:
+        memory.update(message, (), llm, False)
+
+    assert [fact["value"] for fact in kb.get_all_facts()] == ["je code en Python depuis 2015"]
+
+
+class _Answer:
+    """Réponse d'Ollama à un appel court du lecteur de mémoire."""
+
+    @staticmethod
+    def raise_for_status():
+        return None
+
+    @staticmethod
+    def json():
+        return {"message": {"content": '{"remember": [], "forget": []}'}}
+
+
+def test_the_chat_reader_reads_its_examples_as_exchanges():
+    """Sans demande, les exemples précèdent le message comme des échanges. Écrits dans
+    la consigne (« avec 1. (chat) j'habite à Lyon dans Déjà retenu »), ils se
+    confondaient avec la vraie liste : dès qu'un fait était connu, le vrai modèle ne
+    retenait presque plus rien (informations durables : 24 sur 96, 84 ainsi)."""
+    posted = []
+
+    def post(_url, json, timeout):  # pylint: disable=redefined-outer-name
+        del timeout
+        posted.append(json)
+        return _Answer()
+
+    reader = ChatMemoryReader("http://127.0.0.1:9/api/chat", "my_ai", 32768, post=post)
+    reader("Je suis végétarien depuis dix ans.", [], [("chat", "j'habite à Toulouse")], "",
+           False)
+
+    messages = posted[0]["messages"]
+    examples = len(ChatMemoryReader.SPONTANEOUS_EXAMPLES)
+    assert examples >= 3
+    assert [message["role"] for message in messages] == (
+        ["system"] + ["user", "assistant"] * examples + ["user"])
+    assert "Exemples" not in messages[0]["content"]
+    assert messages[-1]["content"].splitlines() == [
+        "Déjà retenu :", "1. (chat) j'habite à Toulouse", "",
+        "Dernier message de l'utilisateur :", "Je suis végétarien depuis dix ans."]
+    # Chaque exemple : un message comme le vrai, puis la réponse attendue, en JSON
+    assert all(message["content"].startswith("Déjà retenu") for message in messages[1:-1:2])
+    assert all(set(json.loads(message["content"])) == {"remember", "forget"}
+               for message in messages[2:-1:2])
+    # Une demande garde sa consigne, sans ces exemples
+    reader("Retiens que j'ai un chat", [], [], "", True)
+    assert [message["role"] for message in posted[1]["messages"]] == ["system", "user"]
 
 
 def test_the_synthesis_waits_for_the_reading_of_the_message():

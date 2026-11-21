@@ -19,6 +19,7 @@ faits du code, que la fenêtre Mémoire montre de même.
 from __future__ import annotations
 
 import logging
+import re
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
 from core.code_memory import MemoryReader, MemoryUpdate, Reading, apply_reading, rereader
@@ -29,6 +30,7 @@ from core.knowledge_base_manager import (
     asks_to_remember,
     extract_remember_request,
     fact_scope,
+    is_assistant_fact,
     project_name,
 )
 
@@ -41,6 +43,27 @@ _MAX_KNOWN_FACTS = 40
 # à Paris » n'est pas lui)
 _MIN_SPONTANEOUS_WORDS = 3
 _MAX_SPONTANEOUS_CHARS = 1500
+# Sans demande, une consigne pour l'IA (« tu dois… ») tirée d'une question qui ne la
+# dit pas durable est sa demande du moment : « Je travaille de nuit, tu as des
+# conseils pour dormir ? » donnait « tu dois me donner des conseils pour dormir »
+_LASTING_RE = re.compile(
+    r"(?<![\w'’])(?:toujours|jamais|d[ée]sormais|dor[ée]navant|[àa]\s+partir\s+de\s+"
+    r"maintenant|[àa]\s+l['’]avenir|chaque\s+fois|always|never|from\s+now\s+on)(?![\w'’])",
+    re.IGNORECASE,
+)
+# Sans demande, ni code ni mot de passe (« le code de mon casier est le 4815 ») : il
+# dira « retiens ça » s'il veut qu'on les garde. Le lecteur retenait ceux d'un message
+# sans autre fait connu (un casier, un digicode, le mot de passe du wifi) ; le lui
+# interdire dans sa consigne déplaçait ses autres réponses (« tu dois me donner des
+# conseils pour dormir », de « je travaille de nuit, tu as des conseils pour
+# dormir ? »). « Je code en Python », « j'écris du code propre » et un code postal
+# restent
+_SECRET_RE = re.compile(
+    r"(?<![\w'’])(?:mots?\s+de\s+passe|digicodes?|passwords?|passcodes?|pin"
+    r"|(?:le|la|les|mon|ma|mes|ton|ta|tes|son|sa|ses|un|ce|cet|l['’])\s*codes?"
+    r"(?!\s+postal))(?![\w'’])",
+    re.IGNORECASE,
+)
 
 _CHAT_ASKED_SYSTEM = (
     "Tu tiens la mémoire de My_AI, un assistant personnel. Le dernier message de "
@@ -93,16 +116,31 @@ _CHAT_SPONTANEOUS_SYSTEM = (
     "forget : les numéros des informations de « Déjà retenu » que son message contredit "
     "et remplace ; la nouvelle va alors dans remember. Aucun autre numéro.\n"
     "\n"
-    "Exemples, avec « 1. (chat) j'habite à Lyon » dans « Déjà retenu » :\n"
-    "- « je travaille de nuit, tu as des conseils pour dormir ? » → {\"remember\": [\"je "
-    "travaille de nuit\"], \"forget\": []}\n"
-    "- « j'ai déménagé à Nantes le mois dernier » → {\"remember\": [\"j'habite à Nantes\"], "
-    "\"forget\": [1]}\n"
-    "- « à partir de maintenant, réponds-moi en anglais » → {\"remember\": [\"tu dois "
-    "toujours me répondre en anglais\"], \"forget\": []}\n"
-    "\n"
     "La plupart des messages ne contiennent rien à retenir : {\"remember\": [], "
     "\"forget\": []}."
+)
+# Ses exemples, lus comme des échanges (faits connus, message, réponse) avant le vrai
+# message (MemoryReader.SPONTANEOUS_EXAMPLES). Écrits dans la consigne, sous « avec
+# « 1. (chat) j'habite à Lyon » dans « Déjà retenu » », ils se confondaient avec la
+# vraie liste : dès qu'un fait était connu, le modèle ne retenait presque plus rien
+# (« je travaille de nuit », pourtant son premier exemple, avec « j'habite à
+# Toulouse » retenu). Sonde de 72 cas tenus à l'écart des exemples, deux fois
+# chacun, jugés après les filtres d'update et d'apply_reading : informations
+# durables retenues 24 fois sur 96 avant, 74 avec, sans rien retenir des messages
+# qui n'en donnent pas (38 sur 40 avant, 40 avec)
+_CHAT_SPONTANEOUS_EXAMPLES = (
+    ((("chat", "j'aime le jazz"),), "je suis kiné, tu connais des étirements pour le dos ?",
+     {"remember": ["je suis kiné"], "forget": []}),
+    ((("chat", "j'habite à Lyon"),), "j'ai déménagé à Nantes le mois dernier",
+     {"remember": ["j'habite à Nantes"], "forget": [1]}),
+    # Même sujet, rien de contredit : sans lui, le modèle proposait de retirer un fait
+    # sans rapport pour 21 informations retenues sur 96, 13 avec
+    ((("chat", "j'ai un chat qui s'appelle Moka"),), "j'ai aussi un chien, il s'appelle Rex",
+     {"remember": ["j'ai un chien qui s'appelle Rex"], "forget": []}),
+    ((), "à partir de maintenant, réponds-moi en anglais",
+     {"remember": ["tu dois toujours me répondre en anglais"], "forget": []}),
+    ((("chat", "j'habite à Lyon"),), "quel temps fera-t-il à Nantes demain ?",
+     {"remember": [], "forget": []}),
 )
 
 
@@ -127,6 +165,7 @@ class ChatMemoryReader(MemoryReader):
 
     ASKED_SYSTEM = _CHAT_ASKED_SYSTEM
     SPONTANEOUS_SYSTEM = _CHAT_SPONTANEOUS_SYSTEM
+    SPONTANEOUS_EXAMPLES = _CHAT_SPONTANEOUS_EXAMPLES
 
     @staticmethod
     def prompt(message: str, context: Sequence[Tuple[str, str]],
@@ -211,6 +250,17 @@ class ChatMemory:
             except Exception as exc:  # pylint: disable=broad-except
                 logger.warning("Chat : le modèle n'a pas lu la mémoire (%s)", exc)
                 reading = Reading()
+        if not asked:
+            question = "?" in message and not _LASTING_RE.search(message)
+            for fact in list(reading.remember):
+                if question and is_assistant_fact(fact):
+                    logger.info("Chat : « %s » est sa demande du moment, pas une consigne : "
+                                "pas retenu", fact[:80])
+                    reading.remember.remove(fact)
+                elif _SECRET_RE.search(fact):
+                    logger.info("Chat : « %s » est un code, retenu seulement sur demande",
+                                fact[:80])
+                    reading.remember.remove(fact)
         return apply_reading(
             self._kb, message, reading, known, shown, asked=asked, scope=SCOPE_CHAT,
             context=context, rules=lambda text: (extract_remember_request(text), SCOPE_CHAT),

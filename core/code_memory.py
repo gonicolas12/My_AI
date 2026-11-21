@@ -420,6 +420,9 @@ class MemoryReader:
     SPONTANEOUS_SYSTEM = _SPONTANEOUS_SYSTEM
     CONFIRM_ASKED_SYSTEM = _CONFIRM_ASKED_SYSTEM
     CONFIRM_SPONTANEOUS_SYSTEM = _CONFIRM_SPONTANEOUS_SYSTEM
+    # Sans demande : des exemples (faits connus, message, réponse), lus comme des
+    # échanges avant le vrai message (le chat : core/chat_memory.py)
+    SPONTANEOUS_EXAMPLES: Sequence[Tuple[Sequence[Tuple[str, str]], str, Dict[str, Any]]] = ()
 
     @staticmethod
     def prompt(message: str, context: Sequence[Tuple[str, str]],
@@ -450,8 +453,13 @@ class MemoryReader:
         Raises:
             requests.RequestException, ValueError: modèle injoignable, réponse illisible.
         """
+        examples = [] if asked else [
+            (self.prompt(said, (), facts, ""), answer)
+            for facts, said, answer in self.SPONTANEOUS_EXAMPLES
+        ]
         data = self._ask(self.ASKED_SYSTEM if asked else self.SPONTANEOUS_SYSTEM,
-                         self.prompt(message, context, known, project), _READ_SCHEMA, 400)
+                         self.prompt(message, context, known, project), _READ_SCHEMA, 400,
+                         examples)
         remember = [fact for fact in (_clean_fact(item) for item in data.get("remember") or []
                                       if isinstance(item, str)) if fact]
         forget = []
@@ -480,13 +488,20 @@ class MemoryReader:
                          20 + 10 * len(keys))
         return [data.get(key) is True for key in keys]
 
-    def _ask(self, system: str, prompt: str, schema: Dict[str, Any],
-             num_predict: int) -> Dict[str, Any]:
-        """Un appel court au modèle, sans réflexion, en JSON contraint par schema."""
+    def _ask(self, system: str, prompt: str, schema: Dict[str, Any], num_predict: int,
+             examples: Sequence[Tuple[str, Dict[str, Any]]] = ()) -> Dict[str, Any]:
+        """Un appel court au modèle, sans réflexion, en JSON contraint par schema ;
+        examples : (message, réponse) lus comme des échanges avant le vrai."""
+        turns: List[Dict[str, str]] = []
+        for said, answer in examples:
+            turns.append({"role": "user", "content": said})
+            turns.append({"role": "assistant",
+                          "content": json.dumps(answer, ensure_ascii=False)})
         payload = {
             "model": self._model,
             "messages": [
                 {"role": "system", "content": system},
+                *turns,
                 {"role": "user", "content": prompt},
             ],
             "stream": False,
