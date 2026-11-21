@@ -909,6 +909,12 @@ def test_the_memory_reader_confirms_each_fact_to_forget():
     # Un autre outil pour le même usage aussi : sans l'exemple, le vrai modèle gardait
     # « j'utilise black » pour « maintenant je formate avec ruff »
     assert "deux outils pour le même usage" in posted[1]["messages"][0]["content"]
+    # « Maintenant » annonce le changement, et ce qui s'ajoute ne rend rien faux : sans
+    # cela, il gardait « j'utilise unittest » pour « en fait, maintenant j'utilise pytest
+    # pour mes tests », et retirait « mon chat s'appelle Félix » pour « j'ai adopté un
+    # deuxième chat »
+    assert "« Maintenant », « désormais »" in posted[1]["messages"][0]["content"]
+    assert "reste vraie avec ce qu'il ajoute" in posted[1]["messages"][0]["content"]
 
 
 # ── Prompt et search_memory de la conversation Code ──────────────────────────

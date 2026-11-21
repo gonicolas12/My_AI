@@ -52,6 +52,7 @@ PLAN_MIN_QUERY_LEN: int = 55    # Longueur minimale pour déclencher la planific
 MAX_TOOL_USES: int = 5          # Nb max d'appels outils avant synthèse forcée
 MAX_EMPTY_SEARCHES: int = 2     # Recherches web vides avant de créer le document demandé
 SYNTHESIS_HEAD_CHARS: int = 160 # Début de synthèse validé avant tout affichage
+MEMORY_CLAIM_HEAD_CHARS: int = 600  # Idem, après une simple recherche dans la mémoire
 SYNTHESIS_NUM_PREDICT: int = 4096  # Tokens de la synthèse, réflexion comprise
 SCRATCHPAD_GOAL_CHARS: int = 300   # Début et fin de la demande repris en OBJECTIF du scratchpad
 
@@ -302,6 +303,81 @@ _SYNTHESIS_RETRY_NOTE = (
     "\nTu as bien accès à ces résultats : réponds en texte à partir d'eux, "
     "sans commenter tes capacités ni ton fonctionnement."
 )
+
+# Une information donnée sans demander de la retenir (« Le code de mon casier est
+# le 4815. »), après une simple recherche dans la mémoire : la synthèse répondait
+# « C'est noté ! », « J'ai bien enregistré… » (my_ai : 9 fois sur 15), alors que
+# rien n'en était retenu. Une règle de plus, un autre cadre de la synthèse ou une
+# note à la fin de sa demande n'y changeaient rien (6 à 11 sur 15), et le modèle
+# le dit même sans outils (11 réponses sur 12) : ce début-là est refait à part,
+# avec cette note en plus (1 sur 30). Les deux tiers de ces affirmations tombent
+# dans les SYNTHESIS_HEAD_CHARS premiers caractères, le reste après « J'ai vérifié
+# ma mémoire… » : le début retenu va alors jusqu'à MEMORY_CLAIM_HEAD_CHARS.
+_NOT_MEMORIZED_NOTE = (
+    "\n\nRien n'a été enregistré dans ta mémoire. Réponds en deux phrases au plus : "
+    "reprends ce qu'il t'a dit, puis dis-lui que s'il veut que tu t'en souviennes, il "
+    "peut te dire « retiens ça ». N'écris ni « c'est noté », ni « j'ai noté », ni "
+    "« j'ai enregistré »."
+)
+_MEMORY_CLAIM = "dit avoir enregistré ce que rien n'a retenu"
+# « C'est noté », « j'ai bien enregistré », « je le retiens », « je vais le garder »,
+# « a été enregistré »… (_claims_memory écarte les phrases niées et les offres)
+_MEMORY_CLAIM_RE = re.compile(
+    r"(?<![\w'’])(?:"
+    r"c['’]est (?:bien |donc )?not[ée]|bien not[ée]"
+    r"|j['’]ai (?:bien |donc |aussi )?(?:not[ée]|enregistr[ée]|m[ée]moris[ée]|sauvegard[ée]"
+    r"|pris note|mis à jour (?:ma|mon|ta|la) m[ée]moire)"
+    r"|je l['’]ai (?:bien |donc )?(?:not[ée]|enregistr[ée]|m[ée]moris[ée]|sauvegard[ée]"
+    r"|retenu|gard[ée])"
+    r"|j['’](?:enregistre|ajoute)\b|je (?:le |la |les )?(?:retiens|note|garde|m[ée]morise"
+    r"|sauvegarde)\b"
+    r"|je (?:le |la |l['’])?(?:garderai|retiendrai|noterai|enregistrerai|m[ée]moriserai)"
+    r"|je vais (?:le |la |l['’])?(?:garder|retenir|noter|enregistrer|m[ée]moriser"
+    r"|sauvegarder)"
+    r"|(?:a|ont) [ée]t[ée] (?:bien )?(?:enregistr|m[ée]moris|sauvegard|not)[ée]"
+    r"|(?:est|sont) (?:donc |maintenant |d[ée]sormais |bien )+(?:(?:enregistr|m[ée]moris"
+    r"|sauvegard|not|gard|conserv)[ée]|retenu)"
+    r")",
+    re.IGNORECASE,
+)
+# Un message qui demande quelque chose (« Cherche dans ta mémoire comment s'appelle
+# mon chat ») plutôt qu'il ne donne une information : la note le priverait de sa
+# réponse
+_REQUEST_START_RE = re.compile(
+    r"^\W*(?:cherche|trouve|dis|donne|rappelle|liste|montre|regarde|v[ée]rifie|explique"
+    r"|[ée]cris|fais|cr[ée]e|lis|ouvre|r[ée]sume|traduis|calcule|peux|pourrais|est-ce|qu"
+    r"|quels?|quelles?|comment|o[uù]|qui|quand|combien|pourquoi)(?![\w])",
+    re.IGNORECASE,
+)
+_CLAIM_NEGATION_RE = re.compile(
+    r"(?<![\w'’])(?:ne|n['’]|pas|rien|jamais|aucune?|sans)(?![\w])", re.IGNORECASE)
+# Une offre (« si tu veux, je le garde ») ; pas « je peux », que suivait une
+# affirmation (« je peux te confirmer que j'ai mémorisé… ») : l'offre « je peux
+# l'enregistrer » n'a de toute façon aucune des formes de _MEMORY_CLAIM_RE
+_CLAIM_OFFER_RE = re.compile(
+    r"(?<![\w'’])(?:si tu|veux-tu|souhaites-tu|pour que|dis-moi|dis-le-moi"
+    r"|(?:veux|voudrais|souhaites|aimerais|préfères) que)(?![\w'’])",
+    re.IGNORECASE,
+)
+
+
+def _claims_memory(text: str) -> bool:
+    """
+    La réponse dit-elle avoir enregistré, noté ou retenu quelque chose ? Pas une
+    phrase niée (« je n'ai pas enregistré », « rien n'a été enregistré »), ni une
+    offre (« si tu veux que je le garde, dis-moi « retiens ça » »), ni ce qui était
+    déjà retenu (« voici ce que j'ai noté »).
+    """
+    text = text or ""
+    for match in _MEMORY_CLAIM_RE.finditer(text):
+        lead = text[:match.start()]
+        sentence = lead[max(lead.rfind(mark) for mark in ".!?\n") + 1:]
+        clause = sentence[max(sentence.rfind(mark) for mark in ",;:—") + 1:]
+        if (_CLAIM_NEGATION_RE.search(clause) or _CLAIM_OFFER_RE.search(sentence)
+                or re.search(r"\bce\s+qu(?:e\s*|['’])$", sentence, re.IGNORECASE)):
+            continue
+        return True
+    return False
 
 # Consignes de rédaction de la synthèse, communes à ses deux formes : en
 # dernier message dans la foulée de la boucle, ou dans le message système de
@@ -627,6 +703,7 @@ class ChatOrchestrator:
         is_interrupted_callback: Optional[Callable] = None,
         on_tool_call: Optional[Callable] = None,
         answer_context: str = "",
+        memory_kept: Optional[Callable[[], bool]] = None,
     ) -> Optional[str]:
         """
         Lance la boucle agentique ReAct.
@@ -648,6 +725,12 @@ class ChatOrchestrator:
             on_thinking_token:       callback pour streamer le plan dans le widget
                                      raisonnement (même widget que le Thinking Mode)
             is_interrupted_callback: retourne True si l'utilisateur a cliqué STOP
+            memory_kept:             message sans demande de retenir ni d'oublier :
+                                     dit, sa lecture par la mémoire finie, si My_AI
+                                     en a retenu quelque chose (None pour une
+                                     demande). Sinon, une synthèse qui suit une
+                                     simple recherche dans la mémoire ne peut pas
+                                     dire l'avoir enregistré (_stream_synthesis)
 
         Returns:
             Réponse finale (str) ou None si interruption / aucun résultat
@@ -934,6 +1017,7 @@ class ChatOrchestrator:
                         on_thinking_complete=on_thinking_complete,
                         answer_context=answer_context,
                         tools=last_call_tools,
+                        memory_kept=memory_kept,
                     )
                     # Filet de sécurité : la synthèse n'a rien produit (délai
                     # dépassé, Ollama tombé) alors qu'un document vient d'être
@@ -1363,6 +1447,7 @@ class ChatOrchestrator:
                 on_thinking_complete=on_thinking_complete,
                 answer_context=answer_context,
                 tools=last_call_tools,
+                memory_kept=memory_kept,
             )
 
         if announced_answer is not None:
@@ -1992,6 +2077,7 @@ class ChatOrchestrator:
         on_thinking_complete: Optional[Callable] = None,
         answer_context: str = "",
         tools: Optional[List[Dict]] = None,
+        memory_kept: Optional[Callable[[], bool]] = None,
     ) -> Optional[str]:
         """
         Synthèse streamée après exécution d'outils, en deux temps.
@@ -2023,10 +2109,15 @@ class ChatOrchestrator:
           - Première passe terminée sans texte (la réflexion a consommé tout
             le budget, ou le modèle a appelé un outil) → même repli, sans
             réflexion.
+          - Après une simple recherche dans la mémoire, pour un message sans
+            question ni demande de retenir dont rien n'a été retenu : un début
+            (MEMORY_CLAIM_HEAD_CHARS) qui dit l'avoir enregistré → même repli,
+            avec _NOT_MEMORIZED_NOTE.
 
         Args:
             tools: Outils envoyés au dernier tour de la boucle : renvoyés
                 tels quels, faute de quoi le début du prompt changerait
+            memory_kept: voir run()
 
         Mode raisonnement natif :
           - Si on_thinking_token est fourni, active le thinking Qwen3.5 sur
@@ -2041,6 +2132,18 @@ class ChatOrchestrator:
         # réduit aux sources qu'elle cite (comme pour le WebAgent)
         block = self._sources_block(messages, loop_start)
         stop = SOURCES_STOP if block else None
+        # Une information donnée en passant, après une simple recherche dans la
+        # mémoire : la réponse ne peut pas dire l'avoir enregistrée si rien ne
+        # l'a été (la lecture du message, faite pendant ce temps, est attendue).
+        # Si elle l'a été, la carte « Mémorisé » le montre de toute façon
+        memory_claims = bool(
+            memory_kept is not None
+            and tool_calls_log
+            and all(entry.get("tool") == "search_memory" for entry in tool_calls_log)
+            and "?" not in user_input
+            and not _REQUEST_START_RE.match(user_input)
+            and not memory_kept()
+        )
 
         # 1. Dans la foulée de la boucle
         request = _FAST_SYNTHESIS_REQUEST.format(
@@ -2051,6 +2154,7 @@ class ChatOrchestrator:
             llm, msgs, user_input, tool_calls_log, on_token,
             is_interrupted_callback, on_thinking_token, on_thinking_complete,
             screen_head=True, tools=tools, loop_markers=True, stop=stop,
+            memory_claims=memory_claims,
         )
         if rejected and not (is_interrupted_callback and is_interrupted_callback()):
             print(
@@ -2060,7 +2164,8 @@ class ChatOrchestrator:
             # 2. Synthèse à part, sans « ## Outils » : elle n'en offre aucun
             synthesis_system = with_modelfile(_SYNTHESIS_RULES, tools=False) + answer_context
             msgs = self._synthesis_messages(
-                messages, loop_start, synthesis_system, user_input, retry=True
+                messages, loop_start, synthesis_system, user_input, retry=True,
+                note=_NOT_MEMORIZED_NOTE if rejected == _MEMORY_CLAIM else "",
             )
             # Sans raisonnement natif : celui de la 1re passe est déjà affiché
             response, _ = self._synthesis_pass(
@@ -2109,6 +2214,7 @@ class ChatOrchestrator:
         system_content: str,
         user_input: str,
         retry: bool = False,
+        note: str = "",
     ) -> List[Dict]:
         """
         Contexte de la synthèse : conversation et échanges d'outils, sans les
@@ -2117,7 +2223,8 @@ class ChatOrchestrator:
         Les messages « user » postérieurs à la question sont tous des consignes
         de l'orchestrateur, écrites pour la boucle d'outils. La synthèse n'a ni
         scratchpad ni outils : elles y deviennent incompréhensibles, et une
-        demande de réponse unique les remplace.
+        demande de réponse unique les remplace. note : ajoutée à la fin de cette
+        demande (_NOT_MEMORIZED_NOTE).
         """
         start = 1 if messages and messages[0].get("role") == "system" else 0
         conversation = messages[start:loop_start]
@@ -2125,6 +2232,7 @@ class ChatOrchestrator:
         request = _SYNTHESIS_REQUEST.format(user_input=user_input)
         if retry:
             request += _SYNTHESIS_RETRY_NOTE
+        request += note
         return [
             {"role": "system", "content": system_content},
             *conversation,
@@ -2146,13 +2254,15 @@ class ChatOrchestrator:
         tools: Optional[List[Dict]] = None,
         loop_markers: bool = False,
         stop: Optional[List[str]] = None,
+        memory_claims: bool = False,
     ) -> Tuple[str, Optional[str]]:
         """
         Un passage de synthèse streamé.
 
         Avec screen_head, le début de réponse est retenu jusqu'à
-        SYNTHESIS_HEAD_CHARS caractères (ou jusqu'à la fin s'il est plus
-        court), puis validé avant d'être transmis à on_token.
+        SYNTHESIS_HEAD_CHARS caractères (MEMORY_CLAIM_HEAD_CHARS avec
+        memory_claims, ou jusqu'à la fin s'il est plus court), puis validé avant
+        d'être transmis à on_token.
 
         Args:
             tools: Outils envoyés tels quels (synthèse dans la foulée de la
@@ -2163,17 +2273,23 @@ class ChatOrchestrator:
                 (SOURCES_STOP) : le flux est coupé dès qu'elle en contient une,
                 et ce qui peut encore en être le début attend avant d'être
                 affiché. Ni le prompt ni la réflexion n'en dépendent
+            memory_claims: Rejeter aussi une réponse qui dit avoir enregistré
+                quelque chose (_claims_memory) : rien ne l'a été
 
         Returns:
             (réponse, motif de rejet). En cas de rejet, rien n'a été transmis
             à on_token et le flux a été coupé.
         """
+        head_chars = MEMORY_CLAIM_HEAD_CHARS if memory_claims else SYNTHESIS_HEAD_CHARS
+
         def validate(text: str) -> Tuple[bool, str]:
             valid, reason = self._validate_response(text, user_input, tool_calls_log)
             lowered = text.lower()
             cited = next((m for m in _LOOP_MARKERS if m in lowered), None) if loop_markers else None
             if valid and cited:
                 return False, f"consigne de la boucle citée : '{cited}'"
+            if valid and memory_claims and _claims_memory(text):
+                return False, _MEMORY_CLAIM
             return valid, reason
 
         # Active le raisonnement natif Qwen3.5 sur la synthèse uniquement quand
@@ -2265,7 +2381,7 @@ class ChatOrchestrator:
                                 chunk, sent = full_response[sent:ready], ready
                                 if not show(chunk):
                                     break
-                        elif len(full_response) >= SYNTHESIS_HEAD_CHARS:
+                        elif len(full_response) >= head_chars:
                             valid, reason = validate(full_response)
                             if not valid:
                                 rejected = reason
