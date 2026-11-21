@@ -17,6 +17,7 @@ import json
 import os
 import sys
 import tokenize
+import warnings
 from pathlib import Path
 
 import pytest
@@ -162,7 +163,11 @@ def _refused_by_python_311(source):
     version plus récente, qui les lit, l'apprend de _only_312_fstrings."""
     if sys.version_info < (3, 12):
         try:
-            compile(source, "<test>", "exec")
+            with warnings.catch_warnings():
+                # Un échappement inconnu (« \d » hors d'une chaîne brute) n'est qu'un
+                # avertissement : le fichier se lit
+                warnings.simplefilter("ignore")
+                compile(source, "<test>", "exec")
         except SyntaxError as exc:
             return [exc.lineno]
         return []
