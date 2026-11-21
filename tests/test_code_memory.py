@@ -696,18 +696,25 @@ def test_forget_or_replace_a_fact_by_saying_so(kb):
 
 
 def test_forget_everything_kept_for_a_project_and_nothing_else(kb):
+    """Le vrai modèle désignait aussi le fait de tous les projets (« j'écris mes
+    commits en anglais »), et le second appel, qui ne voit pas pour quoi vaut un fait,
+    le confirmait : « pour ce projet », seuls ceux du projet partent."""
     _fact(kb, "j'utilise unittest", scope=SCOPE_PROJECT, project=API)
     _fact(kb, "les routes sont dans app.py", scope=SCOPE_PROJECT, project=API)
+    _fact(kb, "j'écris mes commits en anglais", scope=SCOPE_CODE)
+    _fact(kb, "j'utilise jest", scope=SCOPE_PROJECT, project=WEB)
     _fact(kb, "Mon chat s'appelle Félix")
-    memory = _memory_with(kb, FakeReader(([], [1, 2, 9]), ([], [])))
+    memory = _memory_with(kb, FakeReader(([], [1, 2, 3, 9]), ([], [])))
 
     update = memory.update("Oublie tout ce que tu as retenu pour ce projet", [API], (), LLM)
     missing = memory.update("Oublie que j'utilise Java", [API], (), LLM)
 
     assert sorted(item.fact for item in update.forgotten) == [
         "j'utilise unittest", "les routes sont dans app.py"]
-    # Un numéro hors de la liste ne touche rien ; les faits du chat n'y sont jamais
-    assert _values(kb.get_all_facts()) == ["Mon chat s'appelle Félix"]
+    # Un numéro hors de la liste ne touche rien ; les faits du chat et des autres
+    # projets n'y sont jamais
+    assert sorted(_values(kb.get_all_facts())) == [
+        "Mon chat s'appelle Félix", "j'utilise jest", "j'écris mes commits en anglais"]
     assert missing.missing and not missing.changed
 
 
@@ -895,6 +902,9 @@ def test_the_memory_reader_confirms_each_fact_to_forget():
     read.confirm("J'ai déménagé à Nantes", ["j'habite à Nantes"], ["j'habite à Lyon"], False)
     assert "Ce qui en est retenu :\n- j'habite à Nantes" in posted[1]["messages"][1]["content"]
     assert "même s'il dit quelque chose de nouveau" in posted[1]["messages"][0]["content"]
+    # Un autre outil pour le même usage aussi : sans l'exemple, le vrai modèle gardait
+    # « j'utilise black » pour « maintenant je formate avec ruff »
+    assert "deux outils pour le même usage" in posted[1]["messages"][0]["content"]
 
 
 # ── Prompt et search_memory de la conversation Code ──────────────────────────

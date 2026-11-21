@@ -356,9 +356,13 @@ _CONFIRM_SPONTANEOUS_SYSTEM = (
     "mémoire de l'utilisateur, numérotées, vont être retirées à cause de son dernier "
     "message. Pour chacune, réponds true seulement si son message la rend fausse : il dit "
     "autre chose sur le même sujet (« j'ai déménagé à Nantes » rend fausse « j'habite à "
-    "Lyon »). Réponds false si elle parle d'autre chose, même s'il dit quelque chose de "
-    "nouveau sur lui."
+    "Lyon » ; « je code maintenant sous VS Code » rend fausse « j'utilise PyCharm » : deux "
+    "outils pour le même usage). Réponds false si elle parle d'autre chose, même s'il dit "
+    "quelque chose de nouveau sur lui."
 )
+# L'exemple des outils : sans lui, le second appel gardait « j'utilise black » pour
+# « maintenant je formate avec ruff », et de même jest pour vitest, ou des commits en
+# anglais pour des commits en français (16 cas sur 20 tranchés juste, 19 avec)
 
 
 def _confirm_prompt(message: str, new: Sequence[str], candidates: Sequence[str],
@@ -906,6 +910,13 @@ class CodeMemory:
             except Exception as exc:  # pylint: disable=broad-except
                 logger.warning("Conversation Code : le modèle n'a pas lu la mémoire (%s)", exc)
                 reading = Reading()
+        if asked and _THIS_PROJECT_RE.search(message):
+            # « Oublie tout ce que tu as retenu pour ce projet » : ce qui vaut pour tous
+            # ses projets reste. Le vrai modèle le retirait aussi, et le second appel,
+            # qui ne voit pas pour quoi vaut chaque fait, le confirmait
+            reading.forget = [number for number in reading.forget
+                              if 1 <= number <= len(shown)
+                              and fact_scope(shown[number - 1])[0] == SCOPE_PROJECT]
         scope = SCOPE_CODE if _ALL_PROJECTS_RE.search(message) else SCOPE_PROJECT
         return apply_reading(self._kb, message, reading, known, shown, asked=asked,
                              scope=scope, project=project, context=context,
