@@ -21,7 +21,7 @@ from __future__ import annotations
 import logging
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
-from core.code_memory import MemoryReader, MemoryUpdate, Reading, apply_reading
+from core.code_memory import MemoryReader, MemoryUpdate, Reading, apply_reading, rereader
 from core.knowledge_base_manager import (
     SCOPE_CHAT,
     SCOPE_PROJECT,
@@ -200,11 +200,11 @@ class ChatMemory:
                  else [fact for fact in facts if fact_scope(fact)[0] == SCOPE_CHAT])
         shown = sorted(known, key=lambda fact: str(fact.get("updated_at") or ""))
         shown = shown[-_MAX_KNOWN_FACTS:]
+        lines = _known_lines(shown)
         reading = Reading()
         if reader is not None:
             try:
-                reading = reader(message, list(context) if asked else [],
-                                 _known_lines(shown), "", asked)
+                reading = reader(message, list(context) if asked else [], lines, "", asked)
                 logger.info("Chat : mémoire lue par le modèle (%s) : retenir %s, oublier %s",
                             "demande" if asked else "sans demande",
                             [fact[:60] for fact in reading.remember], reading.forget)
@@ -215,7 +215,7 @@ class ChatMemory:
             self._kb, message, reading, known, shown, asked=asked, scope=SCOPE_CHAT,
             context=context, rules=lambda text: (extract_remember_request(text), SCOPE_CHAT),
             source="conversation", wanted=wanted, label="Chat",
-            confirm=getattr(reader, "confirm", None))
+            confirm=getattr(reader, "confirm", None), reread=rereader(reader, message, lines, ""))
 
 
 def chat_memory_for(engine: Any) -> Optional[ChatMemory]:

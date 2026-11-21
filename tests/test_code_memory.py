@@ -515,6 +515,32 @@ def test_a_remember_it_with_nothing_to_remember_is_not_confirmed(kb):
     assert [call["asked"] for call in reader.calls] == [True, False]
 
 
+def test_a_remember_it_takes_back_nothing_nobody_spoke_of(kb):
+    """« Retiens-le » après une réponse qui disait l'information déjà enregistrée : le
+    vrai modèle recopiait toute la liste « Déjà retenu » (une carte « Retenu » par
+    fait). Un fait déjà retenu dont ni le message ni les échanges ne parlent n'est
+    pas repris ; relu sans les réponses de l'assistant, le message retient ce que
+    l'utilisateur avait dit."""
+    _fact(kb, "j'utilise unittest", scope=SCOPE_PROJECT, project=API)
+    _fact(kb, "j'écris mes commits en anglais", scope=SCOPE_CODE)
+    before = [("Utilisateur", "le port de l'api est 8000"),
+              ("Assistant", "C'est enregistré dans ta mémoire !")]
+    listed = (["j'utilise unittest", "j'écris mes commits en anglais"], [])
+    reader = FakeReader(listed, (["le port de l'api est 8000"], []), listed, listed)
+    memory = _memory_with(kb, reader)
+
+    update = memory.update("Retiens-le", [API], before, LLM)
+
+    assert [item.fact for item in update.remembered] == ["le port de l'api est 8000"]
+    assert update.alone and not update.forgotten
+    assert [call["context"] for call in reader.calls] == [before, before[:1]]
+    # Toujours la liste, même relue : rien de retenu, et la note le dit
+    nothing = memory.update("Retiens-le", [API], before, LLM)
+    assert nothing.failed and not nothing.changed
+    assert sorted(_values(kb.get_all_facts())) == [
+        "j'utilise unittest", "j'écris mes commits en anglais", "le port de l'api est 8000"]
+
+
 def test_the_message_says_for_which_projects_not_the_model(kb):
     """Le vrai modèle rangeait « retiens que j'utilise unittest » pour tous les projets."""
     memory = _memory_with(kb, FakeReader((["j'utilise unittest"], []),
