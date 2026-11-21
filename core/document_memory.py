@@ -171,7 +171,9 @@ def folder_document_id(path: str, name: str) -> str:
     Raises:
         OSError: fichier illisible
     """
-    return f"folder_{_file_digest(path, name.encode('utf-8') + b'\0')[:24]}"
+    # Hors de la f-string : Python 3.11 n'y admet pas de barre oblique inverse
+    digest = _file_digest(path, name.encode("utf-8") + b"\0")
+    return f"folder_{digest[:24]}"
 
 
 def image_text(description: str, text: str) -> str:
