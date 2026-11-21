@@ -326,7 +326,7 @@ _MEMORY_CLAIM_RE = re.compile(
     r"(?<![\w'’])(?:"
     r"c['’]est (?:bien |donc )?not[ée]|bien not[ée]"
     r"|j['’]ai (?:bien |donc |aussi )?(?:not[ée]|enregistr[ée]|m[ée]moris[ée]|sauvegard[ée]"
-    r"|pris note)"
+    r"|pris note|mis à jour (?:ma|mon|ta|la) m[ée]moire)"
     r"|je l['’]ai (?:bien |donc )?(?:not[ée]|enregistr[ée]|m[ée]moris[ée]|sauvegard[ée]"
     r"|retenu|gard[ée])"
     r"|j['’](?:enregistre|ajoute)\b|je (?:le |la |les )?(?:retiens|note|garde|m[ée]morise"
@@ -335,8 +335,8 @@ _MEMORY_CLAIM_RE = re.compile(
     r"|je vais (?:le |la |l['’])?(?:garder|retenir|noter|enregistrer|m[ée]moriser"
     r"|sauvegarder)"
     r"|(?:a|ont) [ée]t[ée] (?:bien )?(?:enregistr|m[ée]moris|sauvegard|not)[ée]"
-    r"|(?:est|sont) (?:maintenant |d[ée]sormais |bien )+(?:enregistr|m[ée]moris|sauvegard"
-    r"|not)[ée]"
+    r"|(?:est|sont) (?:donc |maintenant |d[ée]sormais |bien )+(?:(?:enregistr|m[ée]moris"
+    r"|sauvegard|not|gard|conserv)[ée]|retenu)"
     r")",
     re.IGNORECASE,
 )
