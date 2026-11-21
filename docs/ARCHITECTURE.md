@@ -442,9 +442,10 @@ CodeMemory (relay/code_hub.py la reçoit du Relay, avec le modèle) :
 apply_reading(...) : ce que le modèle a lu, vérifié puis écrit (partagé
     avec le chat, core/chat_memory.py). Un fait déjà retenu n'est repris que
     si le message ou les échanges en parlent ; un renvoi (« retiens ça ») dont
-    rien n'a pu être gardé est relu sur les seuls messages de l'utilisateur
-    (reread) : une réponse qui disait l'information déjà enregistrée faisait
-    recopier au modèle toute la liste des faits
+    rien n'a pu être gardé, ou dont le fait commence à la deuxième personne
+    (« ton code… », les mots de la réponse), est relu sur les seuls messages de
+    l'utilisateur (reread) : une réponse qui disait l'information déjà
+    enregistrée faisait recopier au modèle toute la liste des faits
 ```
 
 **`core/chat_memory.py`** - Mémoire dans le chat (fenêtre et téléphone)
