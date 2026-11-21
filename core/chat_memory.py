@@ -147,6 +147,14 @@ _CHAT_SPONTANEOUS_SYSTEM = (
 _CHAT_SPONTANEOUS_EXAMPLES = (
     ((("chat", "j'aime le jazz"),), "je suis kiné, tu connais des étirements pour le dos ?",
      {"remember": ["je suis kiné"], "forget": []}),
+    # Une langue qu'il parle. Sans lui, dès qu'un fait était connu, le modèle n'en
+    # retenait presque aucune (« je parle couramment espagnol » : 4 fois sur 16), ou
+    # recopiait la consigne de l'exemple « réponds-moi en anglais ». Une adresse parmi les
+    # faits connus : avec un seul fait (« j'ai deux enfants »), il proposait de retirer
+    # « j'habite à Toulouse » chaque fois qu'il retenait autre chose
+    ((("chat", "j'habite à Lille"), ("chat", "j'ai deux enfants")),
+     "je parle couramment le russe, tu me conseilles un film russe ?",
+     {"remember": ["je parle couramment le russe"], "forget": []}),
     ((("chat", "j'habite à Lyon"),), "j'ai déménagé à Nantes le mois dernier",
      {"remember": ["j'habite à Nantes"], "forget": [1]}),
     # Même sujet, rien de contredit : sans lui, le modèle proposait de retirer un fait
