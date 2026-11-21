@@ -19,6 +19,10 @@ Office ouvre le fichier comme l'utilisateur le ferait, avec ses précautions :
     quittée (Word ne part pas seul : sans Quit, il restait en mémoire). Dans
     Excel, chaque feuille tient en largeur sur une page à l'italienne, grille et
     en-têtes de lignes et de colonnes imprimés (la copie n'est jamais enregistrée) ;
+  - Excel met en page pour « Microsoft Print to PDF », locale et toujours là, et
+    non pour l'imprimante de Windows, qui peut être une imprimante réseau éteinte
+    (Windows garde la sienne). Bloqué malgré tout, il est fermé passé le délai :
+    l'instance de l'export, repérée par sa fenêtre, jamais un Excel de l'utilisateur ;
   - PowerPoint n'a qu'une instance, que la visionneuse de la fenêtre occupe
     peut-être déjà (« -Embedding », ses présentations refusent
     l'automatisation) et où l'utilisateur peut avoir ouvert le fichier : celui-là
@@ -29,6 +33,7 @@ Office ouvre le fichier comme l'utilisateur le ferait, avec ses précautions :
 """
 
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -47,6 +52,8 @@ CACHE_DIR = preview_cache.ROOT / "office"
 _FORMAT = "1"
 # Au-delà, l'export est abandonné (fichier protégé, dialogue d'Office…)
 EXPORT_TIMEOUT = 90.0
+# Instance d'Excel fermée faute de réponse : son appel en cours échoue aussitôt
+_AFTER_CLOSE = 5.0
 # Au-delà de cette taille, l'aperçu garde son rendu HTML (export trop long)
 MAX_SIZE = 25 * 1024 * 1024
 # Feuille d'Excel : ses premières lignes seulement (des milliers de pages sinon)
@@ -69,6 +76,9 @@ _EXCEL_PDF, _EXCEL_LANDSCAPE = 0, 2  # xlTypePDF, xlLandscape
 _PPT_PDF, _PPT_SCREEN = 2, 1  # ppFixedFormatTypePDF, ppFixedFormatIntentScreen
 # Mot de passe factice : un fichier protégé échoue au lieu d'attendre sa saisie
 _NO_PASSWORD = "my_ai-apercu"
+# Imprimante de la mise en page d'Excel : locale, installée avec Windows
+_PDF_PRINTER = "Microsoft Print to PDF"
+_PRINTERS_KEY = r"Software\Microsoft\Windows NT\CurrentVersion\Devices"
 _SOFFICE_PATHS = (
     r"C:\Program Files\LibreOffice\program\soffice.exe",
     r"C:\Program Files (x86)\LibreOffice\program\soffice.exe",
@@ -205,6 +215,42 @@ def _export_word(client, source: str, target: str) -> bool:
         _quit(app, "Word")
 
 
+def _printer_port(name: str) -> Optional[str]:
+    """Port d'une imprimante tel qu'Office le nomme (« Ne00: »), None si elle manque."""
+    if not _IS_WINDOWS:
+        return None
+    import winreg  # pylint: disable=import-outside-toplevel
+
+    try:
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, _PRINTERS_KEY) as key:
+            value = winreg.QueryValueEx(key, name)[0]  # « winspool,Ne00: »
+    except OSError:
+        return None
+    found = re.search(r"\bNe\d+:", str(value))
+    return found.group(0) if found else None
+
+
+def _print_to_pdf(app) -> None:
+    """Excel met en page pour « Microsoft Print to PDF », et non pour l'imprimante de Windows.
+
+    Réseau et éteinte, celle-ci faisait attendre chaque réglage de la mise en page
+    (20 s), puis l'export ouvrait « Choix de l'imprimante », où personne ne répond.
+    Seule cette instance d'Excel en change : Windows garde la sienne. Excel refuse
+    tant qu'aucun classeur n'est ouvert, et ne prend que le nom complet
+    (« … sur Ne00: », le mot dans la langue d'Office, le port du registre).
+    """
+    port = _printer_port(_PDF_PRINTER)
+    if port is None:
+        return
+    try:
+        # « HP… sur Ne01: » : le mot entre le nom et le port est celui d'Office
+        found = re.search(r" (\S+) Ne\d+:$", app.ActivePrinter or "")
+        word = found.group(1) if found else "on"
+        app.ActivePrinter = f"{_PDF_PRINTER} {word} {port}"
+    except Exception as exc:  # pylint: disable=broad-except
+        logger.debug("Excel garde l'imprimante de Windows : %s", exc)
+
+
 def _fit_sheets(app, workbook) -> None:
     """Chaque feuille en largeur sur une page à l'italienne, grille et en-têtes compris."""
     try:
@@ -251,6 +297,7 @@ def _export_excel(client, source: str, target: str) -> bool:
         _macros_off(app)
         workbook = app.Workbooks.Open(source, 0, True, None, _NO_PASSWORD)
         try:
+            _print_to_pdf(app)
             _fit_sheets(app, workbook)
             workbook.ExportAsFixedFormat(_EXCEL_PDF, target)
         finally:
@@ -284,6 +331,57 @@ _EXPORTERS: dict = {"word": _export_word, "excel": _export_excel,
                     "powerpoint": _export_powerpoint}
 
 
+def _excel_process(app):
+    """Processus d'une instance d'Excel, par sa fenêtre (cachée) ; None s'il échappe."""
+    try:
+        import ctypes  # pylint: disable=import-outside-toplevel
+        from ctypes import wintypes  # pylint: disable=import-outside-toplevel
+
+        import psutil  # pylint: disable=import-outside-toplevel
+
+        pid = wintypes.DWORD()
+        ctypes.windll.user32.GetWindowThreadProcessId(wintypes.HWND(app.Hwnd), ctypes.byref(pid))
+        process = psutil.Process(pid.value)
+        if process.name().lower() == _PROCESSES["excel"]:
+            return process
+    except Exception as exc:  # pylint: disable=broad-except
+        logger.debug("Instance d'Excel de l'export non repérée : %s", exc)
+    return None
+
+
+class _ExportClient:  # pylint: disable=too-few-public-methods
+    """Client COM de l'export : note le processus de l'instance d'Excel qu'il lance.
+
+    Bloquée, elle ne rend jamais la main : passé le délai, elle est fermée, elle seule
+    (ni un Excel de l'utilisateur, ni PowerPoint, dont l'instance est peut-être la sienne).
+    """
+
+    def __init__(self, client):
+        self._client = client
+        self.process = None
+
+    def CreateObject(self, progid: str):  # pylint: disable=invalid-name
+        """L'application d'Office ; d'Excel, le processus de son instance est noté."""
+        app = self._client.CreateObject(progid)
+        if progid == _PROGIDS["excel"]:
+            self.process = _excel_process(app)
+        return app
+
+
+def _close(process) -> bool:
+    """Ferme l'instance lancée pour l'export ; vrai si elle est partie."""
+    if process is None:
+        return False
+    try:
+        # psutil vérifie d'abord que son numéro n'a pas été repris par un autre processus
+        process.kill()
+        process.wait(_AFTER_CLOSE)
+    except Exception as exc:  # pylint: disable=broad-except
+        logger.debug("Instance de l'export non fermée : %s", exc)
+        return False
+    return True
+
+
 def _with_office(kind: str, path: str, target: Path) -> bool:
     if not office_installed(kind):
         return False
@@ -295,12 +393,13 @@ def _with_office(kind: str, path: str, target: Path) -> bool:
     export: Callable = _EXPORTERS[kind]
     # Office n'accepte que les chemins Windows complets (« \ »)
     source = os.path.normpath(os.path.abspath(path))
+    client = _ExportClient(comtypes.client)
     outcome = {}
 
     def run():
         comtypes.CoInitialize()
         try:
-            outcome["ok"] = export(comtypes.client, source, os.path.normpath(str(target)))
+            outcome["ok"] = export(client, source, os.path.normpath(str(target)))
         except Exception as exc:  # pylint: disable=broad-except
             outcome["error"] = exc
         finally:
@@ -310,8 +409,14 @@ def _with_office(kind: str, path: str, target: Path) -> bool:
     worker.start()
     worker.join(EXPORT_TIMEOUT)
     if worker.is_alive():
+        message = f"{kind} n'a pas exporté {path} en {EXPORT_TIMEOUT:.0f} s"
+        # Bloquée (un dialogue que personne ne voit…), l'instance de l'export restait
+        # ouverte : fermée, son appel en cours échoue et le fil s'achève
+        if _close(client.process):
+            worker.join(_AFTER_CLOSE)
+            message += " : son instance a été fermée"
         # Noté en échec : pas un nouvel essai aussi long à chaque aperçu
-        raise TimeoutError(f"{kind} n'a pas exporté {path} en {EXPORT_TIMEOUT:.0f} s")
+        raise TimeoutError(message)
     if "error" in outcome:
         raise outcome["error"]
     return bool(outcome.get("ok"))
