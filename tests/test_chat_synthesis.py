@@ -693,6 +693,10 @@ def test_other_syntheses_keep_their_answer(ollama, user_input, used, kept):
     ("Ton code de salle de sport a été enregistré ! ✅", True),
     ("Je le retiens : 4815.", True),
     ("Je vais le garder précieusement dans ma mémoire.", True),
+    # my_ai, après la correction : « je peux » n'y fait pas une offre
+    ("Je peux directement confirmer que j'ai mémorisé l'information : ton code est le 4815.",
+     True),
+    ("Je peux l'enregistrer si tu le souhaites.", False),
     ("Je n'ai pas enregistré ce numéro dans ta mémoire.", False),
     ("Rien n'a été enregistré pour l'instant.", False),
     ("Je ne l'ai pas noté.", False),

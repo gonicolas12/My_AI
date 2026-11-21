@@ -351,9 +351,12 @@ _REQUEST_START_RE = re.compile(
 )
 _CLAIM_NEGATION_RE = re.compile(
     r"(?<![\w'’])(?:ne|n['’]|pas|rien|jamais|aucune?|sans)(?![\w])", re.IGNORECASE)
+# Une offre (« si tu veux, je le garde ») ; pas « je peux », que suivait une
+# affirmation (« je peux te confirmer que j'ai mémorisé… ») : l'offre « je peux
+# l'enregistrer » n'a de toute façon aucune des formes de _MEMORY_CLAIM_RE
 _CLAIM_OFFER_RE = re.compile(
-    r"(?<![\w'’])(?:si tu|veux-tu|souhaites-tu|pour que|dis-moi|dis-le-moi|je peux"
-    r"|je pourrais|(?:veux|voudrais|souhaites|aimerais|préfères) que)(?![\w'’])",
+    r"(?<![\w'’])(?:si tu|veux-tu|souhaites-tu|pour que|dis-moi|dis-le-moi"
+    r"|(?:veux|voudrais|souhaites|aimerais|préfères) que)(?![\w'’])",
     re.IGNORECASE,
 )
 
