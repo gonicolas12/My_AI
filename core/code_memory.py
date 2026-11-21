@@ -346,11 +346,17 @@ def _read_prompt(message: str, context: Sequence[Tuple[str, str]],
 _CONFIRM_ASKED_SYSTEM = (
     "Tu tiens la mémoire de My_AI, un assistant personnel. Des informations de la "
     "mémoire de l'utilisateur, numérotées, vont être retirées à cause de son dernier "
-    "message. Pour chacune, réponds true seulement si son message demande de l'oublier "
-    "(il la désigne : « oublie où j'habite », « oublie tout ») ou si ce qu'il demande de "
-    "retenir la rend fausse (même sujet : « j'habite à Nantes » remplace « j'habite à "
-    "Lyon ») ; false si elle parle d'autre chose."
+    "message. Juge chacune à part. Réponds true seulement si son message demande de "
+    "l'oublier (il la désigne : « oublie où j'habite », « oublie tout », « oublie que je "
+    "veux des réponses courtes » pour « tu dois me répondre brièvement ») ou si ce qu'il "
+    "demande de retenir la rend fausse (même sujet : « j'habite à Nantes » remplace "
+    "« j'habite à Lyon ») ; false si elle parle d'autre chose, même d'un sujet voisin "
+    "(« oublie que j'ai une voiture » ne vise pas « mon vélo est rouge »)."
 )
+# « Juge chacune à part » et les deux derniers exemples : avec deux faits à trancher,
+# « oublie que j'ai un chien » retirait « mon chat s'appelle Félix », et « oublie que
+# je veux des réponses en anglais » gardait la consigne de répondre en anglais
+# (34 verdicts justes sur 38, 38 avec)
 _CONFIRM_SPONTANEOUS_SYSTEM = (
     "Tu tiens la mémoire de My_AI, un assistant personnel. Des informations de la "
     "mémoire de l'utilisateur, numérotées, vont être retirées à cause de son dernier "

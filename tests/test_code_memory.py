@@ -888,6 +888,10 @@ def test_the_memory_reader_confirms_each_fact_to_forget():
     assert (payload["think"], payload["options"]["num_ctx"],
             payload["options"]["temperature"]) == (False, 32768, 0)
     assert "demande de l'oublier" in payload["messages"][0]["content"]
+    # Un sujet voisin n'est pas visé : avec deux faits à trancher, le vrai modèle
+    # retirait « mon chat s'appelle Félix » pour « oublie que j'ai un chien »
+    assert "Juge chacune à part" in payload["messages"][0]["content"]
+    assert "même d'un sujet voisin" in payload["messages"][0]["content"]
     assert payload["messages"][1]["content"].splitlines() == [
         "Dernier message de l'utilisateur :",
         "Oublie où j'habite",
