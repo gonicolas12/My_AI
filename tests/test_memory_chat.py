@@ -19,6 +19,7 @@ import asyncio
 import functools
 import json
 import logging
+import threading
 import types
 
 import pytest
@@ -27,7 +28,7 @@ import core.chat_orchestrator as chat_orchestrator
 from core.ai_engine import AIEngine
 from core.chat_orchestrator import ChatOrchestrator
 from core.chat_memory import ChatMemoryReader
-from core.code_memory import Reading
+from core.code_memory import MemoryUpdate, Reading, Remembered
 from core.knowledge_base_manager import KnowledgeBaseManager
 from core.modelfile import with_modelfile
 from models.custom_ai_model import CustomAIModel
@@ -942,6 +943,53 @@ def test_a_preference_given_in_passing_is_kept_from_the_chat(kb, ollama, monkeyp
     assert order.index(("remember_fact", "je suis végétarien depuis dix ans")) > order.index("texte")
     assert sum(1 for item in order if isinstance(item, tuple)) == 1
     assert [call["asked"] for call in reader.calls] == [False, False]
+
+
+def test_information_given_in_passing_is_not_said_to_be_saved(kb, ollama, monkeypatch):
+    """« Le code de mon casier… est le 4815. », sans « retiens » : rien n'en est retenu,
+    et la synthèse qui suit search_memory ne le dit plus enregistré (my_ai : « C'est
+    noté ! », 9 fois sur 15). « Je suis végétarien depuis dix ans. » est retenu
+    pendant la réponse : « C'est noté » reste vrai."""
+    _reading(monkeypatch, {
+        "Je suis végétarien depuis dix ans.": (["je suis végétarien depuis dix ans"], []),
+    })
+    search = {"name": "search_memory", "arguments": {"query": "casier"}}
+    honest = ("Ton code de casier est le 4815. Si tu veux que je m'en souvienne, dis-moi "
+              "« retiens ça ».")
+    ollama.replies.extend([search, "Rien à ajouter.", "C'est noté ! Je le retiens.", honest,
+                           search, "Rien à ajouter.", "C'est noté, tu es végétarien !"])
+    engine = _engine(kb)
+
+    locker = engine.process_query_stream(
+        "Le code de mon casier à la salle de sport est le 4815.", on_token=lambda _t: None)
+    vegetarian = engine.process_query_stream(
+        "Je suis végétarien depuis dix ans.", on_token=lambda _t: None)
+
+    assert locker == honest
+    assert vegetarian == "C'est noté, tu es végétarien !"
+    assert [fact["value"] for fact in kb.get_all_facts()] == ["je suis végétarien depuis dix ans"]
+    assert not ollama.replies
+
+
+def test_the_synthesis_waits_for_the_reading_of_the_message():
+    """Ce que la lecture sans demande a retenu, attendu par la synthèse ; une réponse
+    arrêtée n'attend pas."""
+    gate, result = threading.Event(), {}
+
+    def read():
+        gate.wait(5)
+        result["update"] = MemoryUpdate(
+            False, [Remembered("je suis végétarien", 1, True, "chat", "")])
+
+    thread = threading.Thread(target=read)
+    thread.start()
+    assert AIEngine._memory_kept((thread, result), lambda: True) is False
+    gate.set()
+    assert AIEngine._memory_kept((thread, result)) is True
+    thread.join()
+    nothing = threading.Thread(target=lambda: None)
+    nothing.start()
+    assert AIEngine._memory_kept((nothing, {})) is False
 
 
 def test_a_remember_this_block_is_kept_whole_from_the_chat(kb, ollama, monkeypatch):
