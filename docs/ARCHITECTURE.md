@@ -264,7 +264,9 @@ Architecture:
     ├─ PLAN_MIN_QUERY_LEN=55 : seuil déclenchement planification
     ├─ Synthèse      : dans la foulée de la boucle (même prompt, mêmes outils,
     │                  consignes en dernier message) ; repli sur une synthèse à
-    │                  part si son début est rejeté ou cite la boucle
+    │                  part si son début est rejeté ou cite la boucle, ou si,
+    │                  après une simple recherche dans la mémoire, il dit avoir
+    │                  enregistré ce que rien n'a retenu (_NOT_MEMORIZED_NOTE)
     └─ Patterns : ReAct + Plan & Execute
 
 Sécurités:
@@ -440,9 +442,10 @@ CodeMemory (relay/code_hub.py la reçoit du Relay, avec le modèle) :
 apply_reading(...) : ce que le modèle a lu, vérifié puis écrit (partagé
     avec le chat, core/chat_memory.py). Un fait déjà retenu n'est repris que
     si le message ou les échanges en parlent ; un renvoi (« retiens ça ») dont
-    rien n'a pu être gardé est relu sur les seuls messages de l'utilisateur
-    (reread) : une réponse qui disait l'information déjà enregistrée faisait
-    recopier au modèle toute la liste des faits
+    rien n'a pu être gardé, ou dont le fait commence à la deuxième personne
+    (« ton code… », les mots de la réponse), est relu sur les seuls messages de
+    l'utilisateur (reread) : une réponse qui disait l'information déjà
+    enregistrée faisait recopier au modèle toute la liste des faits
 ```
 
 **`core/chat_memory.py`** - Mémoire dans le chat (fenêtre et téléphone)
@@ -454,9 +457,13 @@ conversation Code (ChatMemoryReader, le modèle du chat, ses propres consignes) 
 │   vise aussi ceux du code) ; le bloc MÉMORISATION du prompt la confirme, les
 │   indicateurs remember_fact / forget_fact la montrent
 ├─ Sans demande : ce que l'utilisateur dit de durable sur lui ou sur la façon
-│   dont il veut qu'on lui réponde, lu dans un fil pendant la réponse
-│   (_read_memory_later), signalé à la fin ; au besoin à la place d'un fait du
-│   chat qu'il contredit, jamais rien supprimer d'autre
+│   dont il veut qu'on lui réponde (pas un code ni un mot de passe), lu dans
+│   un fil pendant la réponse (_read_memory_later), signalé à la fin ; au
+│   besoin à la place d'un fait du chat qu'il contredit, jamais rien supprimer
+│   d'autre. Ses exemples sont des échanges avant le message
+│   (SPONTANEOUS_EXAMPLES) : écrits dans la consigne, ils se confondaient avec
+│   la liste des faits connus. La synthèse qui suit une recherche dans la
+│   mémoire attend cette lecture (memory_kept)
 └─ Seul son message compte (memory_text : rien pour une commande « /… »
     déroulée) : le modèle du chat n'a pas d'outil pour écrire dans la mémoire
 ```

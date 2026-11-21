@@ -17,8 +17,10 @@ import pytest
 import core.chat_orchestrator as chat_orchestrator
 from core.chat_orchestrator import (
     SYNTHESIS_HEAD_CHARS,
+    _NOT_MEMORIZED_NOTE,
     _SYNTHESIS_RETRY_NOTE,
     ChatOrchestrator,
+    _claims_memory,
 )
 from core.modelfile import with_modelfile
 from models import internet_search as ws
@@ -583,3 +585,127 @@ def test_several_web_searches_keep_the_model_list(ollama):
 
     assert response == reply and "".join(shown) == reply
     assert ollama.streams[0].lines_read == len(ollama.streams[0].lines)
+
+
+# ── Une information donnée en passant, après une recherche dans la mémoire ───
+
+_LOCKER = "Le code de mon casier à la salle de sport est le 4815."
+_FACTS = "Faits mémorisés :\n- [general] L'utilisateur vit à Lyon"
+_NOTED = "C'est noté ! J'ai bien enregistré que ton code de casier est le **4815**. ✅"
+_HONEST = ("Ton code de casier est le 4815. Si tu veux que je m'en souvienne, dis-moi "
+           "simplement « retiens ça ».")
+
+
+def _after_memory_search(ollama, *replies, user_input=_LOCKER, used=("search_memory",),
+                         kept=False):
+    """Synthèse après search_memory ; kept : ce que la mémoire a retenu du message
+    (None : il demandait de retenir ou d'oublier). Rend aussi les appels à
+    memory_kept."""
+    ollama.replies.extend(replies)
+    messages = [
+        {"role": "system", "content": "système"},
+        {"role": "user", "content": user_input},
+        {"role": "assistant", "content": "", "tool_calls": [
+            {"function": {"name": "search_memory", "arguments": {"query": "code casier"}}}
+        ]},
+        {"role": "tool", "content": _FACTS},
+        {"role": "user", "content": _NUDGE},
+    ]
+    shown, asked = [], []
+
+    def memory_kept():
+        asked.append(True)
+        return kept
+
+    result = ChatOrchestrator()._stream_synthesis(
+        messages=messages, user_input=user_input, llm=_LLM(), on_token=shown.append,
+        is_interrupted_callback=None, tool_calls_log=[{"tool": name} for name in used],
+        loop_start=2, memory_kept=None if kept is None else memory_kept,
+    )
+    return result, "".join(shown), asked
+
+
+def test_information_given_in_passing_is_not_said_to_be_saved(ollama):
+    """« Le code de mon casier… est le 4815. », sans « retiens » : rien n'est retenu
+    (un code), mais après search_memory la synthèse répondait « C'est noté ! J'ai bien
+    enregistré… » (my_ai : 9 fois sur 15). Ce début n'est pas affiché : la synthèse à
+    part le refait, en sachant que rien n'a été enregistré."""
+    result, shown, asked = _after_memory_search(ollama, _NOTED, _HONEST)
+
+    # Rien de la première réponse n'a été affiché
+    assert result == shown == _HONEST
+    assert asked == [True]
+    assert len(ollama.requests) == 2
+    retry = ollama.requests[1]["messages"]
+    assert {"role": "tool", "content": _FACTS} in retry
+    assert retry[-1]["content"].endswith(_SYNTHESIS_RETRY_NOTE + _NOT_MEMORIZED_NOTE)
+    assert "« retiens ça »" in _NOT_MEMORIZED_NOTE
+
+
+def test_a_claim_after_a_preamble_is_caught_too(ollama):
+    """Un tiers de ces affirmations venaient après « J'ai vérifié ma mémoire… » : le
+    début retenu est plus long qu'à l'ordinaire."""
+    late = ("J'ai vérifié ta mémoire : je n'y avais rien sur ton casier, mais je me souviens "
+            "que tu vis à Lyon, que ton chat s'appelle Félix et que tu aimes le café noir. "
+            "C'est une nouvelle information que j'enregistre pour toi. ✅")
+    assert late.index("j'enregistre") > SYNTHESIS_HEAD_CHARS
+
+    result, shown, _asked = _after_memory_search(ollama, late, _HONEST)
+
+    assert result == shown == _HONEST
+    assert len(ollama.requests) == 2
+
+
+def test_the_claim_stays_when_the_memory_kept_something(ollama):
+    """« Je suis végétarien depuis dix ans. » : lu pendant la réponse, il est retenu ;
+    « C'est noté » est alors vrai, et la carte « Mémorisé » le montre."""
+    result, shown, asked = _after_memory_search(
+        ollama, _NOTED, user_input="Je suis végétarien depuis dix ans.", kept=True)
+
+    assert result == shown == _NOTED
+    assert asked == [True] and len(ollama.requests) == 1
+
+
+@pytest.mark.parametrize("user_input, used, kept", [
+    # Une question : la réponse n'est pas qu'une reprise de ce qu'il a dit
+    ("Mon code de casier est le 4815, tu peux me le rappeler demain ?", ("search_memory",),
+     False),
+    # Une demande, sans « ? »
+    ("Cherche dans ta mémoire le code de mon casier", ("search_memory",), False),
+    # D'autres outils que la recherche dans la mémoire
+    (_LOCKER, ("search_memory", "web_search"), False),
+    # « Retiens que… » : le bloc MÉMORISATION dit déjà ce qui a été fait
+    (_LOCKER, ("search_memory",), None),
+])
+def test_other_syntheses_keep_their_answer(ollama, user_input, used, kept):
+    result, shown, asked = _after_memory_search(
+        ollama, _NOTED, user_input=user_input, used=used, kept=kept)
+
+    assert result == shown == _NOTED
+    assert len(ollama.requests) == 1
+    # La lecture du message n'est attendue que pour une information donnée en passant
+    assert not asked
+
+
+@pytest.mark.parametrize("text, claims", [
+    ("C'est noté ! Ton code de casier est le 4815.", True),
+    ("J'ai bien noté ton code de casier : 4815.", True),
+    ("Ton code de salle de sport a été enregistré ! ✅", True),
+    ("Je le retiens : 4815.", True),
+    ("Je vais le garder précieusement dans ma mémoire.", True),
+    # my_ai, après la correction : « je peux » n'y fait pas une offre
+    ("Je peux directement confirmer que j'ai mémorisé l'information : ton code est le 4815.",
+     True),
+    ("Je peux l'enregistrer si tu le souhaites.", False),
+    ("Le code **4815** est donc maintenant bien retenu pour l'avenir.", True),
+    ("J'ai mis à jour ma mémoire avec ce fait personnel.", True),
+    ("Il n'est pas encore retenu pour l'avenir.", False),
+    ("Je n'ai pas enregistré ce numéro dans ta mémoire.", False),
+    ("Rien n'a été enregistré pour l'instant.", False),
+    ("Je ne l'ai pas noté.", False),
+    ("Si tu veux que je le garde, dis-moi « retiens ça ».", False),
+    ("Voici ce que j'ai noté pour tes projets : tu fais tes tests avec pytest.", False),
+    ("Ton casier porte le numéro 4815 : pense à le noter quelque part !", False),
+])
+def test_claims_memory(text, claims):
+    assert _claims_memory(text) is claims

@@ -178,6 +178,12 @@ _DONE_TASK_RE = re.compile(
 )
 
 
+# Un fait qui commence à la deuxième personne (« ton code est… », « tu travailles… ») :
+# pour un renvoi (« retiens ça »), repris de la réponse de l'assistant plutôt que des
+# mots de l'utilisateur (apply_reading)
+_SECOND_PERSON_RE = re.compile(r"(?:ton|ta|tes|tu|t['’])(?![\w])", re.IGNORECASE)
+
+
 def remember_request(message: str) -> Tuple[Optional[str], str, str]:
     """
     Information que le message demande de retenir dans la conversation Code, sa
@@ -363,12 +369,20 @@ _CONFIRM_SPONTANEOUS_SYSTEM = (
     "message. Pour chacune, réponds true seulement si son message la rend fausse : il dit "
     "autre chose sur le même sujet (« j'ai déménagé à Nantes » rend fausse « j'habite à "
     "Lyon » ; « je code maintenant sous VS Code » rend fausse « j'utilise PyCharm » : deux "
-    "outils pour le même usage). Réponds false si elle parle d'autre chose, même s'il dit "
-    "quelque chose de nouveau sur lui."
+    "outils pour le même usage). « Maintenant », « désormais », « je suis passé à » "
+    "annoncent un tel changement : ce qui valait avant pour le même usage ne vaut plus. "
+    "Réponds false si elle parle d'autre chose, même s'il dit quelque chose de nouveau sur "
+    "lui. Réponds false aussi quand elle reste vraie avec ce qu'il ajoute (« j'ai aussi un "
+    "chien » ne rend pas fausse « j'ai un chat »)."
 )
 # L'exemple des outils : sans lui, le second appel gardait « j'utilise black » pour
 # « maintenant je formate avec ruff », et de même jest pour vitest, ou des commits en
-# anglais pour des commits en français (16 cas sur 20 tranchés juste, 19 avec)
+# anglais pour des commits en français (16 cas sur 20 tranchés juste, 19 avec).
+# « Maintenant », « désormais »… et ce qui s'ajoute : sans eux, il gardait « j'utilise
+# unittest » pour « en fait, maintenant j'utilise pytest pour mes tests » et « je suis
+# comptable » pour « j'ai changé de métier : je suis boulanger maintenant », et retirait
+# « mon chat s'appelle Félix » pour « j'ai adopté un deuxième chat, Moka » (chaque fois).
+# Sonde de 27 paires, deux fois chacune : 48 verdicts justes sur 54 avant, 54 avec
 
 
 def _confirm_prompt(message: str, new: Sequence[str], candidates: Sequence[str],
@@ -420,6 +434,9 @@ class MemoryReader:
     SPONTANEOUS_SYSTEM = _SPONTANEOUS_SYSTEM
     CONFIRM_ASKED_SYSTEM = _CONFIRM_ASKED_SYSTEM
     CONFIRM_SPONTANEOUS_SYSTEM = _CONFIRM_SPONTANEOUS_SYSTEM
+    # Sans demande : des exemples (faits connus, message, réponse), lus comme des
+    # échanges avant le vrai message (le chat : core/chat_memory.py)
+    SPONTANEOUS_EXAMPLES: Sequence[Tuple[Sequence[Tuple[str, str]], str, Dict[str, Any]]] = ()
 
     @staticmethod
     def prompt(message: str, context: Sequence[Tuple[str, str]],
@@ -450,8 +467,13 @@ class MemoryReader:
         Raises:
             requests.RequestException, ValueError: modèle injoignable, réponse illisible.
         """
+        examples = [] if asked else [
+            (self.prompt(said, (), facts, ""), answer)
+            for facts, said, answer in self.SPONTANEOUS_EXAMPLES
+        ]
         data = self._ask(self.ASKED_SYSTEM if asked else self.SPONTANEOUS_SYSTEM,
-                         self.prompt(message, context, known, project), _READ_SCHEMA, 400)
+                         self.prompt(message, context, known, project), _READ_SCHEMA, 400,
+                         examples)
         remember = [fact for fact in (_clean_fact(item) for item in data.get("remember") or []
                                       if isinstance(item, str)) if fact]
         forget = []
@@ -480,13 +502,20 @@ class MemoryReader:
                          20 + 10 * len(keys))
         return [data.get(key) is True for key in keys]
 
-    def _ask(self, system: str, prompt: str, schema: Dict[str, Any],
-             num_predict: int) -> Dict[str, Any]:
-        """Un appel court au modèle, sans réflexion, en JSON contraint par schema."""
+    def _ask(self, system: str, prompt: str, schema: Dict[str, Any], num_predict: int,
+             examples: Sequence[Tuple[str, Dict[str, Any]]] = ()) -> Dict[str, Any]:
+        """Un appel court au modèle, sans réflexion, en JSON contraint par schema ;
+        examples : (message, réponse) lus comme des échanges avant le vrai."""
+        turns: List[Dict[str, str]] = []
+        for said, answer in examples:
+            turns.append({"role": "user", "content": said})
+            turns.append({"role": "assistant",
+                          "content": json.dumps(answer, ensure_ascii=False)})
         payload = {
             "model": self._model,
             "messages": [
                 {"role": "system", "content": system},
+                *turns,
                 {"role": "user", "content": prompt},
             ],
             "stream": False,
@@ -712,22 +741,27 @@ def apply_reading(kb: Any, message: str, reading: Reading, known: Sequence[Dict[
         return kept
 
     kept = keep(facts)
-    if (asked and not kept and reread is not None
+    if (asked and reread is not None and (not kept or any(map(_SECOND_PERSON_RE.match, kept)))
             and only_asks_to_remember(_without_scope(message))):
         # « Retiens ça » dont le modèle n'a rien tiré : relu sur ce que l'utilisateur
         # a dit, sans les réponses de l'assistant, qui l'égaraient (« c'est
-        # enregistré », écrit sans que rien ne le soit)
+        # enregistré », écrit sans que rien ne le soit). De même s'il a repris les mots
+        # de l'assistant (« Ton code de casier est le 4815 », après « Ton code de
+        # casier est bien le 4815. Si tu veux que je m'en souvienne, dis-moi
+        # « retiens ça » ») : à la deuxième personne, le fait passerait pour une
+        # consigne pour l'IA. S'il n'en tire rien, la première lecture reste
         own = [(who, text) for who, text in context if who == "Utilisateur"]
         if own and len(own) < len(context):
             try:
-                reading = reread(own)
+                again = reread(own)
             except Exception as exc:  # pylint: disable=broad-except
                 logger.warning("%s : renvoi non relu (%s)", label, exc)
             else:
                 logger.info("%s : renvoi relu sans les réponses de l'assistant : retenir %s",
-                            label, [fact[:60] for fact in reading.remember])
-                facts = list(reading.remember)
-                kept = keep(facts)
+                            label, [fact[:60] for fact in again.remember])
+                kept_again = keep(list(again.remember))
+                if kept_again or not kept:
+                    reading, facts, kept = again, list(again.remember), kept_again
     if asked and not kept and (facts or not reading.forget):
         # Le modèle n'a rien lu de retenable là où il fallait : les règles
         fact, rule_scope = rules(message) if rules else (None, scope)

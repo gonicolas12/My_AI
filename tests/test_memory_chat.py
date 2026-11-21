@@ -19,6 +19,7 @@ import asyncio
 import functools
 import json
 import logging
+import threading
 import types
 
 import pytest
@@ -26,8 +27,8 @@ import pytest
 import core.chat_orchestrator as chat_orchestrator
 from core.ai_engine import AIEngine
 from core.chat_orchestrator import ChatOrchestrator
-from core.chat_memory import ChatMemoryReader
-from core.code_memory import Reading
+from core.chat_memory import ChatMemory, ChatMemoryReader
+from core.code_memory import MemoryUpdate, Reading, Remembered
 from core.knowledge_base_manager import KnowledgeBaseManager
 from core.modelfile import with_modelfile
 from models.custom_ai_model import CustomAIModel
@@ -917,6 +918,40 @@ def test_remember_that_after_a_wrong_claim_keeps_what_the_user_said(kb, ollama, 
     assert not ollama.requests
 
 
+class _EchoingReader(_Reader):
+    """Le vrai lecteur après la réponse honnête (« Ton code de casier est bien le 4815.
+    Si tu veux que je m'en souvienne, dis-moi « retiens ça » ») : il en reprenait les
+    mots, à la deuxième personne ; sans elle, ceux de l'utilisateur."""
+
+    def __call__(self, message, context, known, project, asked):
+        self.calls.append({"message": message, "context": context, "known": known,
+                           "asked": asked})
+        if any(who == "Assistant" for who, _text in context):
+            return Reading(["Ton code de casier à la salle de sport est le 4815"], [])
+        return Reading(["Le code de mon casier à la salle de sport est le 4815"], [])
+
+
+def test_remember_that_keeps_the_user_words_not_the_answer(kb, ollama, monkeypatch):
+    """« Retiens ça » après « Ton code de casier est bien le 4815… » : « Ton code de
+    casier… », à la deuxième personne, passerait pour une consigne pour l'IA. Relu sur
+    les seuls messages de l'utilisateur, ce sont ses mots qui sont retenus."""
+    reader = _EchoingReader({})
+    monkeypatch.setattr(ChatMemoryReader, "for_llm", classmethod(lambda cls, llm: reader))
+    engine = _engine(kb)
+    said = [("Utilisateur", "Le code de mon casier à la salle de sport est le 4815."),
+            ("Assistant", "Ton code de casier est bien le 4815. Si tu veux que je m'en "
+                          "souvienne, dis-moi simplement « retiens ça ».")]
+    engine.local_ai.local_llm.conversation_history = [
+        {"role": "user" if who == "Utilisateur" else "assistant", "content": text}
+        for who, text in said]
+
+    engine.process_query_stream("Retiens ça.", on_token=lambda _token: None)
+
+    assert [fact["value"] for fact in kb.get_all_facts()] == [
+        "Le code de mon casier à la salle de sport est le 4815"]
+    assert [call["context"] for call in reader.calls] == [said, said[:1]]
+
+
 def test_a_preference_given_in_passing_is_kept_from_the_chat(kb, ollama, monkeypatch):
     """« Je suis végétarien depuis dix ans », sans « retiens » : lu pendant la réponse,
     et signalé après son texte."""
@@ -942,6 +977,141 @@ def test_a_preference_given_in_passing_is_kept_from_the_chat(kb, ollama, monkeyp
     assert order.index(("remember_fact", "je suis végétarien depuis dix ans")) > order.index("texte")
     assert sum(1 for item in order if isinstance(item, tuple)) == 1
     assert [call["asked"] for call in reader.calls] == [False, False]
+
+
+def test_information_given_in_passing_is_not_said_to_be_saved(kb, ollama, monkeypatch):
+    """« Le code de mon casier… est le 4815. », sans « retiens » : rien n'en est retenu,
+    et la synthèse qui suit search_memory ne le dit plus enregistré (my_ai : « C'est
+    noté ! », 9 fois sur 15). « Je suis végétarien depuis dix ans. » est retenu
+    pendant la réponse : « C'est noté » reste vrai."""
+    _reading(monkeypatch, {
+        "Je suis végétarien depuis dix ans.": (["je suis végétarien depuis dix ans"], []),
+    })
+    search = {"name": "search_memory", "arguments": {"query": "casier"}}
+    honest = ("Ton code de casier est le 4815. Si tu veux que je m'en souvienne, dis-moi "
+              "« retiens ça ».")
+    ollama.replies.extend([search, "Rien à ajouter.", "C'est noté ! Je le retiens.", honest,
+                           search, "Rien à ajouter.", "C'est noté, tu es végétarien !"])
+    engine = _engine(kb)
+
+    locker = engine.process_query_stream(
+        "Le code de mon casier à la salle de sport est le 4815.", on_token=lambda _t: None)
+    vegetarian = engine.process_query_stream(
+        "Je suis végétarien depuis dix ans.", on_token=lambda _t: None)
+
+    assert locker == honest
+    assert vegetarian == "C'est noté, tu es végétarien !"
+    assert [fact["value"] for fact in kb.get_all_facts()] == ["je suis végétarien depuis dix ans"]
+    assert not ollama.replies
+
+
+def test_a_question_is_not_kept_as_an_instruction(kb):
+    """Sans demande, « tu dois… » tiré d'une question qui ne le dit pas durable est sa
+    demande du moment : « tu as des conseils pour dormir ? » donnait « tu dois me
+    donner des conseils pour dormir ». Une consigne durable, ou affirmée, reste."""
+    reader = _Reader({
+        "Je travaille de nuit, tu as des conseils pour dormir ?": (
+            ["tu dois me donner des conseils pour dormir"], []),
+        "Fais toujours des réponses courtes. Combien de temps pour cuire un œuf ?": (
+            ["tu dois toujours faire des réponses courtes"], []),
+        "Tu dois me tutoyer, s'il te plaît.": (["tu dois me tutoyer"], []),
+    })
+    memory = ChatMemory(kb, reader=lambda _llm: reader)
+    llm = {"chat_url": "http://127.0.0.1:9/api/chat", "model": "my_ai", "num_ctx": 2048}
+
+    for message in reader.answers:
+        memory.update(message, (), llm, False)
+
+    assert sorted(fact["value"] for fact in kb.get_all_facts()) == [
+        "tu dois me tutoyer", "tu dois toujours faire des réponses courtes"]
+
+
+def test_a_code_is_kept_only_on_request(kb):
+    """Sans demande, ni code ni mot de passe : le vrai modèle retenait celui d'un message
+    quand aucun autre fait n'était connu. « Je code en Python » reste, et « retiens ça »
+    garde le code (core/code_memory.py, apply_reading)."""
+    reader = _Reader({
+        "Le code de mon casier à la salle de sport est le 4815.": (
+            ["le code de mon casier à la salle de sport est le 4815"], []),
+        "Le mot de passe du wifi de chez moi est Soleil2024.": (
+            ["le mot de passe du wifi de chez moi est Soleil2024"], []),
+        "Je code en Python depuis 2015, c'est mon métier.": (
+            ["je code en Python depuis 2015"], []),
+    })
+    memory = ChatMemory(kb, reader=lambda _llm: reader)
+    llm = {"chat_url": "http://127.0.0.1:9/api/chat", "model": "my_ai", "num_ctx": 2048}
+
+    for message in reader.answers:
+        memory.update(message, (), llm, False)
+
+    assert [fact["value"] for fact in kb.get_all_facts()] == ["je code en Python depuis 2015"]
+
+
+class _Answer:
+    """Réponse d'Ollama à un appel court du lecteur de mémoire."""
+
+    @staticmethod
+    def raise_for_status():
+        return None
+
+    @staticmethod
+    def json():
+        return {"message": {"content": '{"remember": [], "forget": []}'}}
+
+
+def test_the_chat_reader_reads_its_examples_as_exchanges():
+    """Sans demande, les exemples précèdent le message comme des échanges. Écrits dans
+    la consigne (« avec 1. (chat) j'habite à Lyon dans Déjà retenu »), ils se
+    confondaient avec la vraie liste : dès qu'un fait était connu, le vrai modèle ne
+    retenait presque plus rien (informations durables : 24 sur 96, 84 ainsi)."""
+    posted = []
+
+    def post(_url, json, timeout):  # pylint: disable=redefined-outer-name
+        del timeout
+        posted.append(json)
+        return _Answer()
+
+    reader = ChatMemoryReader("http://127.0.0.1:9/api/chat", "my_ai", 32768, post=post)
+    reader("Je suis végétarien depuis dix ans.", [], [("chat", "j'habite à Toulouse")], "",
+           False)
+
+    messages = posted[0]["messages"]
+    examples = len(ChatMemoryReader.SPONTANEOUS_EXAMPLES)
+    assert examples >= 3
+    assert [message["role"] for message in messages] == (
+        ["system"] + ["user", "assistant"] * examples + ["user"])
+    assert "Exemples" not in messages[0]["content"]
+    assert messages[-1]["content"].splitlines() == [
+        "Déjà retenu :", "1. (chat) j'habite à Toulouse", "",
+        "Dernier message de l'utilisateur :", "Je suis végétarien depuis dix ans."]
+    # Chaque exemple : un message comme le vrai, puis la réponse attendue, en JSON
+    assert all(message["content"].startswith("Déjà retenu") for message in messages[1:-1:2])
+    assert all(set(json.loads(message["content"])) == {"remember", "forget"}
+               for message in messages[2:-1:2])
+    # Une demande garde sa consigne, sans ces exemples
+    reader("Retiens que j'ai un chat", [], [], "", True)
+    assert [message["role"] for message in posted[1]["messages"]] == ["system", "user"]
+
+
+def test_the_synthesis_waits_for_the_reading_of_the_message():
+    """Ce que la lecture sans demande a retenu, attendu par la synthèse ; une réponse
+    arrêtée n'attend pas."""
+    gate, result = threading.Event(), {}
+
+    def read():
+        gate.wait(5)
+        result["update"] = MemoryUpdate(
+            False, [Remembered("je suis végétarien", 1, True, "chat", "")])
+
+    thread = threading.Thread(target=read)
+    thread.start()
+    assert AIEngine._memory_kept((thread, result), lambda: True) is False
+    gate.set()
+    assert AIEngine._memory_kept((thread, result)) is True
+    thread.join()
+    nothing = threading.Thread(target=lambda: None)
+    nothing.start()
+    assert AIEngine._memory_kept((nothing, {})) is False
 
 
 def test_a_remember_this_block_is_kept_whole_from_the_chat(kb, ollama, monkeypatch):

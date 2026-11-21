@@ -2355,6 +2355,22 @@ Que voulez-vous que je fasse pour vous ?""",
         thread.start()
         return thread, result
 
+    @staticmethod
+    def _memory_kept(later: Any, is_interrupted_callback=None) -> bool:
+        """
+        La lecture d'un message sans demande (_read_memory_later), attendue
+        (30 s au plus, ou jusqu'à l'arrêt de la réponse) : en a-t-elle retenu
+        quelque chose ? La synthèse qui suit une recherche dans la mémoire ne
+        peut pas dire l'avoir enregistré, sinon (ChatOrchestrator).
+        """
+        thread, result = later
+        for _step in range(150):
+            if not thread.is_alive() or (is_interrupted_callback and is_interrupted_callback()):
+                break
+            thread.join(0.2)
+        update = result.get("update")
+        return bool(update is not None and update.remembered)
+
     def _show_memory_later(self, later: Any, on_tool_call) -> None:
         """Ce que le modèle a retenu d'un message sans demande, signalé en fin de tour."""
         if later is None:
@@ -3531,6 +3547,9 @@ Que voulez-vous que je fasse pour vous ?""",
                 on_delete_confirm=on_delete_confirm, on_image=on_image,
                 on_image_progress=on_image_progress, on_document=on_document,
                 on_tool_result=on_tool_result,
+                memory_kept=(
+                    (lambda: self._memory_kept(later, is_interrupted_callback))
+                    if later is not None else None),
             )
         finally:
             self._show_memory_later(later, on_tool_call)
@@ -3550,8 +3569,12 @@ Que voulez-vous que je fasse pour vous ?""",
         on_image_progress=None,
         on_document=None,
         on_tool_result=None,
+        memory_kept=None,
     ) -> str:
-        """La réponse de process_query_stream, la mémoire du tour déjà faite."""
+        """La réponse de process_query_stream, la mémoire du tour déjà faite.
+
+        memory_kept : sans demande de retenir ni d'oublier, dit si la lecture du
+        message en a retenu quelque chose (ChatOrchestrator.run)."""
         # Les documents produits pendant ce tour sont accumulés par
         # _register_document et relayés au GUI depuis tool_executor.
         self._last_documents = []
@@ -3860,6 +3883,7 @@ Que voulez-vous que je fasse pour vous ?""",
                     is_interrupted_callback=is_interrupted_callback,
                     on_tool_call=on_tool_call,
                     answer_context=answer_context,
+                    memory_kept=memory_kept,
                 )
 
                 if orch_result:
