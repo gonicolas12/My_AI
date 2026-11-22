@@ -2282,9 +2282,15 @@ Que voulez-vous que je fasse pour vous ?""",
                     "sait pas quoi : rien n'a été enregistré. Ne dis pas que c'est noté ; "
                     "demande-lui en une phrase ce qu'il veut que tu retiennes.")
         if update.missing:
+            # Juste après des confirmations (« C'est noté : … »), le modèle répondait
+            # « C'est noté : j'ai oublié que tu as un chien », alors que rien n'était
+            # retenu ni retiré : la phrase attendue lui est donnée. Seul dans son
+            # message, l'oubli reçoit cette phrase sans le modèle (_nothing_to_forget)
             return ("MÉMORISATION : l'utilisateur demande d'oublier quelque chose, mais rien de "
-                    "tel n'est dans ta mémoire persistante : rien n'a été retiré. Dis-le-lui "
-                    f"en une phrase{then}")
+                    "tel n'est dans ta mémoire persistante : rien n'a été retiré. Ne dis ni "
+                    "que c'est noté, ni que tu l'as oublié, retiré ou effacé : dis-lui en une "
+                    "phrase que tu n'avais rien retenu de tel (par exemple : « Je n'avais rien "
+                    f"retenu là-dessus : il n'y a rien à oublier. »){then}")
         if update.failed:
             return ("MÉMORISATION : rien n'a pu être enregistré de ce que l'utilisateur demande "
                     "de retenir. Ne dis pas que c'est noté ; dis-le-lui en une phrase, et "
@@ -2307,6 +2313,32 @@ Que voulez-vous que je fasse pour vous ?""",
                 + ". Cela vaut aussi pour les prochaines conversations (fenêtre 🧠 Mémoire, "
                 "onglet Faits). Confirme-le brièvement, en lui parlant à la deuxième personne"
                 + then)
+
+    def _nothing_to_forget(self, user_input: str, on_token=None) -> str:
+        """
+        « Oublie que j'ai un chien », seul, et rien de tel n'est retenu : la réponse est
+        connue, elle est donnée sans le modèle. Juste après des confirmations, il
+        répondait « C'est noté : j'ai oublié que tu as un chien » (9 réponses sur 12) ;
+        avec la phrase attendue dans le bloc MÉMORISATION, il la recopiait, sauf 1 fois
+        sur 12 (« C'est bien effacé de la mémoire persistante »).
+
+        Returns:
+            La réponse, gardée dans l'historique comme une autre ; "" si le message
+            demande autre chose ou qu'un fait a été retiré.
+        """
+        update = getattr(self, "_turn_memory", None)
+        if update is None or not (update.asked and update.missing and update.alone):
+            return ""
+        code = self._reminded_language(user_input)
+        text = tr("chat.nothingToForget", _lang=code)
+        if on_token is not None:
+            on_token(text)
+        llm = getattr(getattr(self, "local_ai", None), "local_llm", None)
+        if llm is not None and hasattr(llm, "add_to_history"):
+            llm.add_to_history("user", user_input)
+            llm.add_to_history("assistant", text)
+        self.logger.info("process_query_stream ok (rien à oublier, sans le modèle)")
+        return text
 
     def _turn_alone(self) -> bool:
         """Le message du tour ne fait que demander de retenir : une confirmation, sans
@@ -3537,6 +3569,9 @@ Que voulez-vous que je fasse pour vous ?""",
         said = user_input if memory_text is None else memory_text
         self._remember_from_message(said)
         self._memory_indicators(self._turn_memory, on_tool_call)
+        nothing = self._nothing_to_forget(user_input, on_token)
+        if nothing:
+            return nothing
         later = self._read_memory_later(said, is_interrupted_callback)
         try:
             return self._process_query_stream(

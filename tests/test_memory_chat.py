@@ -30,6 +30,7 @@ from core.ai_engine import AIEngine
 from core.chat_orchestrator import ChatOrchestrator
 from core.chat_memory import ChatMemory, ChatMemoryReader
 from core.code_memory import MemoryUpdate, Reading, Remembered
+from core.i18n import tr
 from core.knowledge_base_manager import KnowledgeBaseManager
 from core.modelfile import with_modelfile
 from models.custom_ai_model import CustomAIModel
@@ -846,20 +847,43 @@ def test_forget_or_replace_a_fact_from_the_chat(kb, ollama, monkeypatch):
 def test_forgetting_what_is_not_in_memory_removes_nothing(kb, ollama, monkeypatch):
     """« Oublie que j'ai un chien » : le vrai modèle désignait « je m'appelle
     Camille », et le second appel ne le confirme pas. Rien n'est retiré, et la
-    réponse le dit, sans outils."""
+    réponse le dit, sans le modèle : juste après des confirmations, il répondait
+    « C'est noté : j'ai oublié que tu as un chien » (9 réponses sur 12)."""
     kb.add_fact("general", key="je m'appelle Camille", value="je m'appelle Camille")
     _reading(monkeypatch, {"Oublie que j'ai un chien.": ([], [1])},
              {"Oublie que j'ai un chien.": [False]})
-    engine, calls = _engine(kb), []
+    engine, calls, tokens = _engine(kb), [], []
 
-    engine.process_query_stream("Oublie que j'ai un chien.", on_token=lambda _token: None,
-                                on_tool_call=lambda name, args: calls.append(name))
+    answer = engine.process_query_stream("Oublie que j'ai un chien.", on_token=tokens.append,
+                                         on_tool_call=lambda name, args: calls.append(name))
 
     assert [fact["value"] for fact in kb.get_all_facts()] == ["je m'appelle Camille"]
     assert calls == [] and not ollama.requests
-    system = engine.local_ai.local_llm.streamed_systems[0]
-    assert "rien de tel n'est dans ta mémoire persistante" in system
-    assert "Son message ne demande rien d'autre" in system
+    llm = engine.local_ai.local_llm
+    assert llm.streamed_systems == []
+    assert answer == "".join(tokens) == tr("chat.nothingToForget")
+    assert "rien à oublier" in answer
+    # Gardée dans l'historique : « retiens ça », juste après, la lit
+    assert llm.conversation_history[-2:] == [
+        {"role": "user", "content": "Oublie que j'ai un chien."},
+        {"role": "assistant", "content": answer}]
+
+
+def test_forgetting_what_is_not_in_memory_with_another_request(kb, ollama, monkeypatch):
+    """Rien à oublier, et autre chose à faire : le modèle répond, et le bloc
+    MÉMORISATION lui donne la phrase attendue au lieu de « j'ai oublié… »."""
+    message = "Oublie que j'ai un chien et donne-moi une idée de recette."
+    _reading(monkeypatch, {message: ([], [])})
+    ollama.replies.append("Je n'avais rien retenu là-dessus. Voici une recette.")
+    engine = _engine(kb)
+
+    engine.process_query_stream(message, on_token=lambda _token: None)
+
+    systems = ollama.systems() or engine.local_ai.local_llm.streamed_systems
+    assert "rien de tel n'est dans ta mémoire persistante" in systems[0]
+    assert "ni que tu l'as oublié, retiré ou effacé" in systems[0]
+    assert "il n'y a rien à oublier" in systems[0]
+    assert "puis réponds au reste de son message" in systems[0]
 
 
 def test_remember_that_reads_the_previous_exchanges(kb, ollama, monkeypatch):
