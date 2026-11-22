@@ -26,7 +26,7 @@ from core.knowledge_base_manager import (
     only_asks_to_remember,
     remember_block,
 )
-from core.memory_languages import is_request, request_languages, word_count
+from core.memory_languages import is_request, message_parts, request_languages, word_count
 
 # ── Retenir ──────────────────────────────────────────────────────────────────
 
@@ -332,6 +332,64 @@ def test_what_asks_for_something_rather_than_tells(said, asks):
     """Un renvoi (« 记住这个 ») dont le modèle n'a rien tiré reprend la dernière information
     de l'utilisateur : pas une question ni une autre demande."""
     assert is_request(said) is asks
+
+
+@pytest.mark.parametrize(
+    ("message", "parts"),
+    [
+        # Ce qu'il dit, puis sa question ou une autre demande
+        ("Я работаю медсестрой по ночам, посоветуй, как лучше спать днём?",
+         [("Я работаю медсестрой по ночам", True), ("посоветуй", False),
+          ("как лучше спать днём", False)]),
+        ("我上夜班，有什么白天睡好觉的建议吗？",
+         [("我上夜班", True), ("有什么白天睡好觉的建议吗", False)]),
+        ("أعمل ممرضًا في الليل، هل لديك نصائح للنوم أثناء النهار؟",
+         [("أعمل ممرضًا في الليل", True), ("هل لديك نصائح للنوم أثناء النهار", False)]),
+        ("Trabajo de noche como enfermero, ¿tienes consejos para dormir de día?",
+         [("Trabajo de noche como enfermero", True),
+          ("¿tienes consejos para dormir de día", False)]),
+        ("Напиши мне рецепт, я вегетарианец.",
+         [("Напиши мне рецепт", False), ("я вегетарианец", True)]),
+        # Plusieurs phrases ; une question qui s'ouvre sur un mot interrogatif
+        ("Моего сына зовут Артём, ему семь лет. Что подарить ему на день рождения?",
+         [("Моего сына зовут Артём", True), ("ему семь лет", True),
+          ("Что подарить ему на день рождения", False)]),
+        ("Как мне лучше спать днём, если я работаю по ночам?",
+         [("Как мне лучше спать днём", False), ("если я работаю по ночам", False)]),
+        # Ce qu'il cherche, ce qu'il demande de faire, un salut
+        ("Я ищу роман на испанском для сестры.", [("Я ищу роман на испанском для сестры", False)]),
+        ("我在找一本西班牙语小说送给妹妹。", [("我在找一本西班牙语小说送给妹妹", False)]),
+        ("妹のためにスペイン語の小説を探しています。",
+         [("妹のためにスペイン語の小説を探しています", False)]),
+        ("Procuro um romance em espanhol para a minha irmã.",
+         [("Procuro um romance em espanhol para a minha irmã", False)]),
+        ("Schrijf een kort gedicht over de zee.", [("Schrijf een kort gedicht over de zee", False)]),
+        ("海についての短い詩を書いて。", [("海についての短い詩を書いて", False)]),
+        ("바다에 관한 짧은 시를 써 줘.", [("바다에 관한 짧은 시를 써 줘", False)]),
+        ("Привет! Я врач.", [("Привет", False), ("Я врач", True)]),
+        # Ce qui ne vaut que pour la journée ; « de nos jours », « maintenant » durent
+        ("Сегодня я опоздал на работу, представляешь?",
+         [("Сегодня я опоздал на работу", False), ("представляешь", False)]),
+        ("Hoje cheguei atrasado ao trabalho.", [("Hoje cheguei atrasado ao trabalho", False)]),
+        ("我今天很累。", [("我今天很累", False)]),
+        ("오늘 회사에 지각했어요.", [("오늘 회사에 지각했어요", False)]),
+        ("Hoy en día trabajo desde casa.", [("Hoy en día trabajo desde casa", True)]),
+        ("오늘날 저는 재택근무를 해요.", [("오늘날 저는 재택근무를 해요", True)]),
+        ("Ya no soy profesor, ahora trabajo en un banco.",
+         [("Ya no soy profesor", True), ("ahora trabajo en un banco", True)]),
+        ("我已经不当老师了，现在在银行工作。",
+         [("我已经不当老师了", True), ("现在在银行工作", True)]),
+        # Qui ne demande rien : « …ですよ », « …운동해요 » ; un nombre reste entier
+        ("私は医者ですよ。", [("私は医者ですよ", True)]),
+        ("저는 매일 운동해요.", [("저는 매일 운동해요", True)]),
+        ("Мне 35, я встаю в 6:30.", [("Мне 35", True), ("я встаю в 6:30", True)]),
+    ],
+)
+def test_what_a_message_says_and_what_it_asks(message, parts):
+    """Sans demande, dans les dix autres langues, ce qui est retenu est repris des parties
+    du message qui disent quelque chose (core/chat_memory.py, _in_his_words) : ni sa
+    question, ni une autre demande, ni ce qu'il cherche."""
+    assert [(part.text, part.says) for part in message_parts(message)] == parts
 
 
 @pytest.mark.parametrize(

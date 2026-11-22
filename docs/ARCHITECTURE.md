@@ -473,8 +473,13 @@ conversation Code (ChatMemoryReader, le modèle du chat, ses propres consignes) 
 │   (« tu dois me donner des conseils pour dormir »), le message est relu sans
 │   sa question (_said_of_himself). Ce qui vient de ce qu'il cherche (« je
 │   cherche un roman en espagnol pour ma sœur ») n'est pas retenu, même sans
-│   « ? » (_from_a_search). La synthèse qui suit une recherche dans la mémoire
-│   attend cette lecture (memory_kept)
+│   « ? » (_from_a_search). Dans les dix autres langues (message_language),
+│   deux mots suffisent, et ce qui est retenu est repris des parties du message
+│   qui disent (memory_languages.message_parts : ni sa question, ni une autre
+│   demande, ni ce qu'il cherche), la seule ou celles que le modèle désigne
+│   (ChatMemoryReader.parts) : aux consignes françaises, il traduisait le fait,
+│   qui ne venait plus de l'utilisateur (_in_his_words). La synthèse qui suit
+│   une recherche dans la mémoire attend cette lecture (memory_kept)
 └─ Seul son message compte (memory_text : rien pour une commande « /… »
     déroulée) : le modèle du chat n'a pas d'outil pour écrire dans la mémoire
 ```

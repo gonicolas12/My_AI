@@ -29,7 +29,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import List, Optional, Pattern, Tuple
+from typing import List, Match, Optional, Pattern, Tuple
 
 REMEMBER = "remember"
 FORGET = "forget"
@@ -141,6 +141,15 @@ class _Words:
     # demande suivie d'une virgule (« 犬のことは忘れて、レシピを教えて ») n'en est une
     # que dans une telle phrase (« 覚えて、テストに合格した » raconte)
     request_end: str = ""
+    # Lecture sans demande (message_parts). Ce qu'il cherche (« busco… », « 我在找… ») :
+    # sa demande du moment, comme « je cherche… » en français (core/chat_memory.py)
+    search: str = ""
+    # Verbe en dernier : comment finit une proposition qui demande (« …書いて », « …써
+    # 줘 »), sans les fins d'une phrase qui dit (« …ですよ », « …운동해요 »)
+    asks_end: str = ""
+    # Ce qui ne vaut que pour la journée (« hoy », « сегодня », « 今天 ») : pas un fait
+    # durable. Pas « maintenant » : « ahora trabajo en un banco » en est un
+    momentary: str = ""
     verb_last: bool = False
     # Mots séparés par des espaces (pas le chinois ni le japonais)
     spaced: bool = True
@@ -191,6 +200,8 @@ _SPANISH = _Words(
         r"|prop[óo]nme|crea|cr[ée]ame|traduce|trad[úu]ceme|ay[úu]dame|mu[ée]strame|muestra"
         r"|calcula|genera|prepara|ponme|env[íi]a|abre|lee|resume|res[úu]meme|corrige|revisa"
     ),
+    search=r"busco|buscamos|(?:estoy|estamos|ando|andamos|sigo)\s+buscando|en\s+busca\s+de",
+    momentary=r"(?:hoy(?!\s+en\s+d[íi]a)|ayer|anoche|esta\s+(?:noche|ma[ñn]ana|tarde))(?![\w'’])",
     all_projects=r"(?:para|en)\s+todos\s+(?:mis|los|nuestros)\s+(?:proyectos|repos(?:itorios)?)",
     this_project=r"(?:para|en)\s+(?:este|el)\s+(?:proyecto|repo(?:sitorio)?)",
 )
@@ -241,6 +252,8 @@ _GERMAN = _Words(
         r"|hilf|erstell(?:e)?|[üu]bersetz(?:e)?|berechne|schick(?:e)?|nenn(?:e)?|schlag"
         r"|finde?|lies|fass"
     ),
+    search=r"suche|suchen|auf\s+der\s+suche",
+    momentary=r"(?:heute|gestern|vorhin)(?![\w'’])",
     all_projects=(
         r"(?:f[üu]r|in|bei)\s+(?:alle|allen|s[äa]mtliche[n]?)\s+(?:meine[n]?\s+|unsere[n]?\s+)?"
         r"(?:projekte[n]?|repos|repositor(?:y|ies)|codebasen)"
@@ -286,6 +299,8 @@ _ITALIAN = _Words(
         r"|consiglia|suggerisci(?:mi)?|proponi(?:mi)?|crea(?:mi)?|traduci|aiutami|mostrami"
         r"|mostra|calcola|genera|prepara(?:mi)?|manda(?:mi)?|leggi|riassumi"
     ),
+    search=r"cerco|cerchiamo|(?:sto|stiamo)\s+cercando|alla\s+ricerca\s+d",
+    momentary=r"(?:oggi|ieri|stasera|stamattina|stanotte)(?![\w'’])",
     all_projects=r"(?:per|in|su)\s+tutti\s+i\s+(?:miei\s+|nostri\s+)?(?:progetti|repo(?:sitory)?)",
     this_project=r"(?:per|in|su)\s+(?:questo|il)\s+(?:progetto|repo(?:sitory)?)",
 )
@@ -332,6 +347,11 @@ _PORTUGUESE = _Words(
         r"|crie|traduz|traduza|ajuda-me|me\s+ajude|mostra(?:-me)?|mostre|calcula|gera|prepara"
         r"|manda|envia|l[êe]|resume"
     ),
+    search=(
+        r"procuro|procuramos|busco|(?:estou|estamos|ando|andamos)\s+"
+        r"(?:[àa]\s+procura|procurando|buscando)|(?:[àa]|em)\s+(?:procura|busca)\s+d"
+    ),
+    momentary=r"(?:hoje(?!\s+em\s+dia)|ontem|esta\s+(?:noite|manh[ãa]|tarde))(?![\w'’])",
     all_projects=(
         r"(?:para|em|nos)\s+todos\s+(?:os\s+)?(?:meus\s+|nossos\s+)?"
         r"(?:projetos|projectos|reposit[óo]rios|repos)"
@@ -376,6 +396,9 @@ _DUTCH = _Words(
         r"geef|vertel|schrijf|maak|zoek|leg|raad|stel|help|toon|bereken|vertaal|stuur|noem"
         r"|lees|vat"
     ),
+    search=r"zoek|zoeken|op\s+zoek",
+    momentary=(r"(?:vandaag(?!\s+de\s+dag)|gisteren|vanavond|vanochtend|vanmorgen|vannacht)"
+               r"(?![\w'’])"),
     all_projects=(
         r"(?:voor|in|bij)\s+(?:al\s+)?(?:mijn|onze|alle)\s+"
         r"(?:projecten|repo['’]?s|repositories)"
@@ -418,6 +441,8 @@ _RUSSIAN = _Words(
         r"(?:дай|скажи|напиши|сделай|найди|объясни|посоветуй|предложи|создай|переведи|помоги"
         r"|покажи|посчитай|расскажи|подскажи|составь|пришли)(?:те)?"
     ),
+    search=r"ищу|ищем|в\s+поиск(?:ах|е)",
+    momentary=r"(?:сегодня|вчера|этим\s+(?:утром|вечером))(?![\w'’])",
     all_projects=(
         r"(?:для|во|в)\s+вс(?:ех|ем)\s+(?:моих\s+|наших\s+)?"
         r"(?:проект(?:ах|ов)|репозитори(?:ях|ев))"
@@ -457,6 +482,8 @@ _CHINESE = _Words(
     requests=(
         r"告诉我|告訴我|给我|給我|帮我|幫我|推荐|推薦|建议|建議|搜索|解释|解釋|翻译|翻譯|计算|計算|生成|创建|創建|列出|说说|說說|讲讲|講講|写一|寫一"
     ),
+    search=r"在找|想找|要找|寻找|尋找",
+    momentary=r"今天|今晚|今早|昨天|昨晚|刚才|剛才",
     spaced=False,
     all_projects=(
         r"(?:在|对|對|为|為|于|於)?(?:我的)?所有(?:我的)?(?:的)?"
@@ -500,6 +527,9 @@ _JAPANESE = _Words(
         r"|(?:こと|事)(?:を|は|も)|を|は|も|と|って)"
     ),
     request_end=r"(?:て|で|ください|下さい|くれ|ほしい|欲しい|ね|よ|な)",
+    search=r"探して|探し中",
+    momentary=r"今日|今晩|今夜|今朝|昨日|昨夜|さっき",
+    asks_end=r"(?:て|で|ください|下さい|くれ|ちょうだい|ほしい(?:です)?|欲しい(?:です)?)(?:ね|よ|な)?",
     verb_last=True,
     spaced=False,
     all_projects=r"(?:すべて|全て|全部)の(?:私の)?(?:プロジェクト|リポジトリ)(?:で|に|に対して|について|では)?",
@@ -540,6 +570,9 @@ _KOREAN = _Words(
         r"(?:(?:라는|이라는|다는|는|란)\s?(?:것을|것|걸|거|사실을|사실|점을|점)|을|를|은|는|도)"
     ),
     request_end=r"(?:줘|줘요|주세요|세요|해|해요|봐|봐요|둬|자|라)",
+    search=r"찾고\s?있|찾는\s?중",
+    momentary=r"오늘(?!날)|어제|방금",
+    asks_end=r"(?:줘|줘요|주세요|주십시오|줄래요?|주실래요|봐|봐요)",
     verb_last=True,
     all_projects=(
         r"(?:모든|전체)\s?(?:내\s?)?(?:프로젝트|저장소|레포)(?:에\s?대해서|에\s?대해|에서도|에서|에)?"
@@ -581,6 +614,9 @@ _ARABIC = _Words(
     adverbs=_arabic(r"من\s+فضلك|بدلا\s+من\s+ذلك|ايضا|جيدا"),
     requests=_arabic(r"(?:و|ف)?(?:اعطني|قل\s+لي|اخبرني|اكتب|اقترح|ابحث|اشرح|ساعدني|ترجم|احسب"
                      r"|انشئ|اعرض|ارسل|لخص)"),
+    search=_arabic(r"(?:ا|ن)بحث\s+عن"),
+    momentary=(_arabic(r"(?:و|ف)?(?:اليوم|امس|البارحة|الليلة)") + r"(?![\w'’])"
+               + "|" + _arabic(r"هذا\s+(?:الصباح|المساء)")),
     all_projects=_arabic(r"(?:ل|في)\s*(?:كل|جميع)\s+(?:مشاريعي|المشاريع|مستودعاتي|مشاريعنا)"),
     this_project=_arabic(r"(?:ل|في)\s*(?:هذا|ذلك)\s+(?:المشروع|المستودع)"),
 )
@@ -628,6 +664,11 @@ class _Language:
     request_end: Optional[Pattern[str]]
     # Verbe en tête : une autre demande qui ouvre le texte (« Dame una receta »)
     request_start: Optional[Pattern[str]]
+    # Lecture sans demande (message_parts) : une recherche, et, verbe en dernier, la fin
+    # d'une proposition qui demande ; ce qui ne vaut que pour la journée
+    search: Optional[Pattern[str]]
+    asks_end: Optional[Pattern[str]]
+    momentary: Optional[Pattern[str]]
     script: Tuple[Pattern[str], ...]
 
     @property
@@ -714,6 +755,14 @@ def _compile(words: _Words) -> _Language:
             rf"^(?:(?:{lead_in})(?:\s+|$))*(?:{words.requests})(?![\w'’])" if spaced
             else rf"^(?:(?:{lead_in})\s*)*(?:{words.requests})", _FLAGS)
             if words.requests else None),
+        search=(re.compile((rf"(?<![\w'’-])(?:{words.search})" if spaced
+                            else rf"(?:{words.search})"), _FLAGS)
+                if words.search else None),
+        asks_end=(re.compile(rf"(?:{words.asks_end})[\s〜~♪…ー]*$", _FLAGS)
+                  if words.asks_end else None),
+        momentary=(re.compile((rf"(?<![\w'’-])(?:{words.momentary})" if spaced
+                               else rf"(?:{words.momentary})"), _FLAGS)
+                   if words.momentary else None),
         script=scripts,
     )
 
@@ -1178,6 +1227,106 @@ def is_request(text: str) -> bool:
             if bodies and language.request_end.search(bodies[-1]):
                 return True
     return False
+
+
+# ── Ce qu'un message dit, et ce qu'il demande (lecture sans demande) ─────────
+
+# Une phrase, avec sa ponctuation finale
+_SENTENCE_RE = re.compile(r"[^.!?\n。！？؟]+[.!?\n。！？؟]*")
+_SENTENCE_TAIL = ".!?\n。！？؟ \t"
+# Ce qui sépare deux propositions : point-virgule, virgule, deux-points (pas ceux d'un
+# nombre : « 3,5 », « 10:30 »)
+_PART_SPLIT_RE = re.compile(r"[;，、；：،؛]|[,:](?!\d)|(?<!\d)[,:]")
+
+
+@dataclass(frozen=True)
+class Part:
+    """Une proposition d'un message : sa place (message[start:end]), et si elle dit
+    quelque chose plutôt qu'elle ne demande (says)."""
+
+    start: int
+    end: int
+    text: str
+    says: bool
+
+
+def _asks(text: str, languages: List[_Language], question: bool, last: bool) -> bool:
+    """La proposition demande-t-elle au lieu de dire (message_parts) ?"""
+    if text.lstrip(" \t\"'«“(").startswith("¿"):
+        return True
+    cleaned = _PUNCTUATION_RE.sub(" ", text).strip()
+    for language in languages:
+        if language.request_start is not None and language.request_start.match(cleaned):
+            return True
+        if language.search is not None and language.search.search(cleaned):
+            return True
+        if last and language.asks_end is not None and language.asks_end.search(
+                text.rstrip(_FACT_END_CHARS)):
+            return True
+        if question:
+            rest = _strip_lead_in(cleaned, language)
+            pattern = language.question
+            if pattern.match(rest) if language.words.spaced else pattern.search(rest):
+                return True
+    return False
+
+
+def message_parts(message: str) -> List[Part]:
+    """
+    Les propositions du message, coupées à sa ponctuation. Ne disent rien :
+      - la dernière d'une phrase qui finit par une question (« Trabajo de noche,
+        ¿tienes consejos? ») et, dans une question, celle qui s'ouvre sur un mot
+        interrogatif ;
+      - celle qui s'ouvre sur « ¿ » ou sur un verbe qui demande (« посоветуй »,
+        « Schreib… », « 写一首… ») ; en japonais et en coréen, la fin d'une phrase qui
+        demande (« …書いて », « …써 줘 ») ;
+      - une recherche (« Я ищу роман… », « 我在找… », « Busco… ») : sa demande du
+        moment, comme « je cherche… » en français (core/chat_memory.py) ;
+      - ce qui ne vaut que pour la journée (« Сегодня я опоздал на работу », « Hoje
+        cheguei atrasado ») : le vrai modèle en tirait « je suis souvent en retard au
+        travail » ou « j'ai travaillé aujourd'hui » ;
+      - celle qui n'est que salut ou politesse (« Привет », « 谢谢 »).
+    """
+    message = message or ""
+    languages = _languages_for(message)
+    parts: List[Part] = []
+    for sentence in _SENTENCE_RE.finditer(message):
+        question, spans = _sentence_parts(message, sentence)
+        for index, (start, end) in enumerate(spans):
+            text = message[start:end]
+            last = index == len(spans) - 1
+            asks = (question and last) or _asks(text, languages, question, last)
+            parts.append(Part(start, end, text,
+                              not asks and not _says_nothing_lasting(text, languages)))
+    return parts
+
+
+def _sentence_parts(message: str, sentence: Match[str]) -> Tuple[bool, List[Tuple[int, int]]]:
+    """La phrase finit-elle par une question, et la place de ses propositions dans le
+    message, sans les espaces qui les entourent (message_parts)."""
+    whole = sentence.group(0)
+    body = whole.rstrip(_SENTENCE_TAIL)
+    question = any(mark in whole[len(body):] for mark in _QUESTION_MARKS)
+    spans, begin = [], sentence.start()
+    for separator in _PART_SPLIT_RE.finditer(body):
+        spans.append((begin, sentence.start() + separator.start()))
+        begin = sentence.start() + separator.end()
+    spans.append((begin, sentence.start() + len(body)))
+    trimmed = []
+    for start, end in spans:
+        raw = message[start:end]
+        if raw.strip():
+            trimmed.append((start + len(raw) - len(raw.lstrip()),
+                            end - (len(raw) - len(raw.rstrip()))))
+    return question, trimmed
+
+
+def _says_nothing_lasting(text: str, languages: List[_Language]) -> bool:
+    """La proposition n'est-elle que salut, politesse, ou ce qui ne vaut que pour la
+    journée (message_parts) ?"""
+    return any(_only(text, language.lead_in) or _only(text, language.polite)
+               or (language.momentary is not None and bool(language.momentary.search(text)))
+               for language in languages)
 
 
 def forgets_a_fact(message: str) -> bool:

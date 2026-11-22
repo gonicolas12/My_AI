@@ -788,11 +788,15 @@ class _Reader:
     """Le modèle du chat qui lit ce qu'un message change dans la mémoire, joué par le
     test : (à retenir, numéros à oublier) selon le message."""
 
-    def __init__(self, answers, verdicts=None):
+    def __init__(self, answers, verdicts=None, parts=None):
         self.answers = answers
         # Second appel (confirm) : chaque fait à retirer est-il bien visé ? Oui par défaut
         self.verdicts = verdicts or {}
+        # Sans demande, dans les dix autres langues : les parties du message qui disent
+        # chaque fait (ChatMemoryReader.parts) ; aucune par défaut
+        self.chosen_parts = parts or {}
         self.calls = []
+        self.part_calls = []
 
     def __call__(self, message, context, known, project, asked):
         self.calls.append({"message": message, "context": context, "known": known,
@@ -802,6 +806,10 @@ class _Reader:
 
     def confirm(self, message, _new, candidates, _asked):
         return self.verdicts.get(message, [True] * len(candidates))
+
+    def parts(self, message, said, facts):
+        self.part_calls.append((message, list(said), list(facts)))
+        return self.chosen_parts.get(message, [[] for _fact in facts])
 
 
 def _reading(monkeypatch, answers, verdicts=None):
@@ -1459,6 +1467,158 @@ def test_a_fact_in_the_second_person_takes_the_user_words(fact, message, kept):
     verbe change de forme (« tu es », « je suis »), il reformule parfois ; pas un autre
     sujet, ni une consigne pour l'IA."""
     assert chat_memory._in_own_words(fact, message) == kept
+
+
+_READER_LLM = {"chat_url": "http://127.0.0.1:9/api/chat", "model": "my_ai", "num_ctx": 2048}
+
+
+def test_a_fact_in_another_language_keeps_the_user_words(kb):
+    """Sans demande, dans les dix autres langues, le vrai modèle écrivait en français ce
+    qu'il dit de lui (« ma sœur s'appelle Masha et elle habite à Kazan ») : ces mots ne
+    venant pas de l'utilisateur, rien n'était retenu (aucune information durable en
+    russe, chinois, arabe ni coréen). Elle est reprise de ses mots : la seule partie de
+    son message, sans second appel, ou celles que le modèle désigne ; jamais sa question."""
+    reader = _Reader({
+        "Я врач.": (["je suis médecin"], []),
+        "我吃素已经十年了。": (["je suis végétarien depuis dix ans"], []),
+        "Мою сестру зовут Маша, она живёт в Казани.": (
+            ["ma sœur s'appelle Masha et elle habite à Kazan"], []),
+        "أعمل ممرضًا في الليل، هل لديك نصائح للنوم أثناء النهار؟": (
+            ["je travaille la nuit comme infirmier"], []),
+        "Меня зовут Олег. Я живу в Казани.": (["je m'appelle Oleg", "j'habite à Kazan"], []),
+        # À la deuxième personne, comme sa question : pas une consigne pour l'IA
+        "Trabajo de noche como enfermero, ¿tienes consejos para dormir de día?": (
+            ["tu travailles la nuit comme infirmier"], []),
+    }, parts={
+        "Мою сестру зовут Маша, она живёт в Казани.": [[1, 2]],
+        "أعمل ممرضًا في الليل، هل لديك نصائح للنوم أثناء النهار؟": [[1]],
+        "Меня зовут Олег. Я живу в Казани.": [[1], [2]],
+        "Trabajo de noche como enfermero, ¿tienes consejos para dormir de día?": [[1]],
+    })
+    memory = ChatMemory(kb, reader=lambda _llm: reader)
+
+    for message in reader.answers:
+        memory.update(message, (), _READER_LLM, False)
+
+    assert sorted(fact["value"] for fact in kb.get_all_facts()) == sorted([
+        "Я врач", "我吃素已经十年了", "Мою сестру зовут Маша, она живёт в Казани",
+        "أعمل ممرضًا في الليل", "Меня зовут Олег", "Я живу в Казани",
+        "Trabajo de noche como enfermero"])
+    assert reader.part_calls == [
+        ("Мою сестру зовут Маша, она живёт в Казани.",
+         ["Мою сестру зовут Маша", "она живёт в Казани"],
+         ["ma sœur s'appelle Masha et elle habite à Kazan"]),
+        ("أعمل ممرضًا في الليل، هل لديك نصائح للنوم أثناء النهار؟", ["أعمل ممرضًا في الليل"],
+         ["je travaille la nuit comme infirmier"]),
+        ("Меня зовут Олег. Я живу в Казани.", ["Меня зовут Олег", "Я живу в Казани"],
+         ["je m'appelle Oleg", "j'habite à Kazan"]),
+        ("Trabajo de noche como enfermero, ¿tienes consejos para dormir de día?",
+         ["Trabajo de noche como enfermero"], ["tu travailles la nuit comme infirmier"]),
+    ]
+
+
+def test_what_asks_is_not_kept_in_another_language(kb):
+    """Ce qu'il cherche, ce qu'il demande de faire ou de dire : rien, comme en français.
+    Le vrai modèle recopiait parfois le message (« schrijf een kort gedicht over de
+    zee », « procuro um romance em espanhol para a minha irmã ») : ses mots le faisaient
+    retenir. Une partie que le modèle ne désigne pas n'est pas retenue non plus."""
+    reader = _Reader({
+        "Schrijf een kort gedicht over de zee.": (["schrijf een kort gedicht over de zee"], []),
+        "Procuro um romance em espanhol para a minha irmã.": (
+            ["procuro um romance em espanhol para a minha irmã"], []),
+        "我在找一本西班牙语小说送给妹妹。": (["j'ai une sœur"], []),
+        "Какая погода будет завтра в Казани?": (["tu dois me dire la météo à Kazan"], []),
+        "Есть советы, как спать, если я работаю по ночам?": (["je travaille la nuit"], []),
+    })
+    memory = ChatMemory(kb, reader=lambda _llm: reader)
+
+    for message in reader.answers:
+        memory.update(message, (), _READER_LLM, False)
+
+    assert kb.get_all_facts() == []
+    assert [message for message, _said, _facts in reader.part_calls] == [
+        "Есть советы, как спать, если я работаю по ночам?"]
+
+
+def test_a_fact_already_in_his_words_stays(kb):
+    """Ce que le modèle a déjà écrit avec ses mots reste tel quel, sans second appel."""
+    reader = _Reader({
+        "Mi hermana se llama Lucía y vive en Sevilla.": (
+            ["mi hermana se llama Lucía y vive en Sevilla"], []),
+        "Ik werk 's nachts als verpleegkundige, heb je tips om overdag goed te slapen?": (
+            ["ik werk 's nachts als verpleegkundige"], []),
+    })
+    memory = ChatMemory(kb, reader=lambda _llm: reader)
+
+    for message in reader.answers:
+        memory.update(message, (), _READER_LLM, False)
+
+    assert sorted(fact["value"] for fact in kb.get_all_facts()) == [
+        "ik werk 's nachts als verpleegkundige", "mi hermana se llama Lucía y vive en Sevilla"]
+    assert reader.part_calls == []
+
+
+def test_a_fact_replaced_in_another_language_keeps_the_user_words(kb):
+    """« El mes pasado me mudé a Valencia » remplace « Vivo en Madrid » : avec ses mots,
+    pas ceux que le modèle en a tirés (« vivo en Valencia »)."""
+    kb.remember("Vivo en Madrid", source="conversation", scope="chat")
+    reader = _Reader({"El mes pasado me mudé a Valencia.": (["vivo en Valencia"], [1])})
+    memory = ChatMemory(kb, reader=lambda _llm: reader)
+
+    update = memory.update("El mes pasado me mudé a Valencia.", (), _READER_LLM, False)
+
+    assert [fact["value"] for fact in kb.get_all_facts()] == ["El mes pasado me mudé a Valencia"]
+    assert [item.fact for item in update.forgotten] == ["Vivo en Madrid"]
+
+
+def test_two_words_are_read_in_the_other_languages(kb):
+    """« Я врач », « أنا طبيب », « Soy médico » : deux mots, sans verbe « être » ou sans
+    « je », là où « je suis médecin » en a trois. Lus dans les dix autres langues ; en
+    français et en anglais, il en faut toujours trois (« ok merci », « thank you »)."""
+    reader = _Reader({})
+    memory = ChatMemory(kb, reader=lambda _llm: reader)
+
+    for message in ("Я врач.", "أنا طبيب.", "Soy médico.", "ok merci", "thank you"):
+        memory.update(message, (), _READER_LLM, False)
+
+    assert [call["message"] for call in reader.calls] == ["Я врач.", "أنا طبيب.", "Soy médico."]
+
+
+class _PartsAnswer:
+    """Réponse d'Ollama à la question des parties du message (ChatMemoryReader.parts)."""
+
+    @staticmethod
+    def raise_for_status():
+        return None
+
+    @staticmethod
+    def json():
+        return {"message": {"content": '{"1": [1, 2], "2": ["x", 3]}'}}
+
+
+def test_the_chat_reader_names_the_parts_of_the_message():
+    """Le modèle ne fait que désigner des parties du message : les mots retenus sont les
+    siens (_in_his_words)."""
+    posted = []
+
+    def post(_url, json, timeout):  # pylint: disable=redefined-outer-name
+        del timeout
+        posted.append(json)
+        return _PartsAnswer()
+
+    reader = ChatMemoryReader("http://127.0.0.1:9/api/chat", "my_ai", 32768, post=post)
+    chosen = reader.parts("Меня зовут Олег. Я живу в Казани.",
+                          ["Меня зовут Олег", "Я живу в Казани"],
+                          ["je m'appelle Oleg", "j'habite à Kazan"])
+
+    assert chosen == [[1, 2], [3]]
+    messages = posted[0]["messages"]
+    assert [message["role"] for message in messages] == ["system", "user"]
+    assert messages[1]["content"].splitlines() == [
+        "Son message :", "Меня зовут Олег. Я живу в Казани.", "", "Ses parties :",
+        "1. Меня зовут Олег", "2. Я живу в Казани", "", "Informations tirées de son message :",
+        "1. je m'appelle Oleg", "2. j'habite à Kazan"]
+    assert posted[0]["format"]["required"] == ["1", "2"]
 
 
 def test_a_code_is_kept_only_on_request(kb):
