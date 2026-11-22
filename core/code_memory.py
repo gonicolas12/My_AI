@@ -30,7 +30,6 @@ from __future__ import annotations
 import json
 import logging
 import re
-import unicodedata
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
@@ -53,6 +52,7 @@ from core.knowledge_base_manager import (
     project_name,
     remember_block,
 )
+from utils.text_fold import fold
 
 logger = logging.getLogger(__name__)
 
@@ -95,10 +95,9 @@ _FORGET_FACT_RE = re.compile(
 
 
 def _plain(text: str) -> str:
-    """Minuscules sans accents ni ponctuation aux bords, pour comparer deux phrases."""
-    decomposed = unicodedata.normalize("NFKD", text or "")
-    flat = "".join(c for c in decomposed if not unicodedata.combining(c)).casefold()
-    return re.sub(r"\s+", " ", flat).strip(" ,.;:!?")
+    """Minuscules sans accents, ligatures (utils/text_fold.py) ni ponctuation aux bords,
+    pour comparer deux phrases."""
+    return re.sub(r"\s+", " ", fold(text)).strip(" ,.;:!?")
 
 
 # « tu » de l'assistant ramené au « je » de l'utilisateur, pour comparer (_loose)

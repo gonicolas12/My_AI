@@ -660,3 +660,9 @@ def test_meteo_json_open_meteo_illisible(monkeypatch):
         "html.duckduckgo.com": lambda url, **kw: _Response(body=DDG_PAGE),
     })
     assert ws.weather("météo Lyon") is None
+
+
+def test_les_ligatures_comptent_dans_les_mots():
+    # « cœur » était coupé en « c » et « ur », trop courts : la requête n'avait plus de mot
+    assert ws._terms("le cœur de Paris") == ["coeur", "paris"]
+    assert ws._matches(ws._terms("œuvre de Monet"), "Une oeuvre majeure de Monet") == 2

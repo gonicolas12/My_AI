@@ -1113,6 +1113,18 @@ def test_a_message_read_as_a_request_only_is_read_again_without_its_question(kb)
     assert [fact["value"] for fact in kb.get_all_facts()] == ["je travaille de nuit"]
 
 
+def test_a_fact_with_the_oe_ligature_is_kept_without_request(kb):
+    """« J'ai une sœur » n'avait aucun mot qui compte (« sœur » coupé en « s » et « ur ») :
+    pris pour un fait qui ne vient pas de l'utilisateur, il n'était jamais retenu."""
+    reader = _Reader({"J'ai une sœur et deux frères.": (["j'ai une sœur"], [])})
+    memory = ChatMemory(kb, reader=lambda _llm: reader)
+    llm = {"chat_url": "http://127.0.0.1:9/api/chat", "model": "my_ai", "num_ctx": 2048}
+
+    memory.update("J'ai une sœur et deux frères.", (), llm, False)
+
+    assert [fact["value"] for fact in kb.get_all_facts()] == ["j'ai une sœur"]
+
+
 def test_what_the_user_looks_for_is_not_kept(kb):
     """Sans demande, ce qu'il cherche est sa demande du moment, même sans « ? » : de
     « Je cherche un roman en espagnol pour ma sœur. », le vrai modèle retenait la

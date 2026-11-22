@@ -21,13 +21,13 @@ from __future__ import annotations
 import json
 import re
 import threading
-import unicodedata
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from core.i18n import tr
 from utils.logger import setup_logger
+from utils.text_fold import fold
 
 logger = setup_logger("prompt_library")
 
@@ -163,13 +163,11 @@ class PromptLibrary:
 
     @staticmethod
     def _normalize(text: str) -> str:
-        """Minuscule + suppression des accents (pour un matching tolérant).
+        """Minuscule + suppression des accents et des ligatures (pour un matching tolérant).
 
-        Permet à `/resume` de correspondre à `/résume`.
+        Permet à `/resume` de correspondre à `/résume`, et `/oeuvre` à `/œuvre`.
         """
-        decomposed = unicodedata.normalize("NFD", text or "")
-        stripped = "".join(c for c in decomposed if unicodedata.category(c) != "Mn")
-        return stripped.strip().lower()
+        return fold(text).strip()
 
     @staticmethod
     def _slugify(text: str) -> str:

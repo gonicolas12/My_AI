@@ -40,6 +40,16 @@ def test_accents_and_word_forms_are_ignored():
     assert "Les fichiers ne se chargent pas" in result
 
 
+def test_the_oe_ligature_is_ignored():
+    """« cœur » était coupé en « c » et « ur » : « coeur », tapé sans la ligature, ne le
+    retrouvait pas."""
+    filler = [f"Paragraphe {n} : remplissage neutre. " * 25 for n in range(40)]
+    filler[30] = "Le cœur du moteur chauffe quand la pompe tourne à vide."
+    for question in ("que dit-il du coeur ?", "que dit-il du cœur ?"):
+        result = select_passages("\n".join(filler), question, 4000)
+        assert "Le cœur du moteur chauffe" in result
+
+
 def test_passages_follow_document_order_after_its_beginning():
     result = select_passages(_doc(50), "sections 40 et 5", 8000)
     beginning = result.index("SECTION 1: TITRE 1")

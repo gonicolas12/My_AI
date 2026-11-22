@@ -13,9 +13,10 @@ relie une question et un passage écrits dans deux langues différentes.
 
 import math
 import re
-import unicodedata
 from collections import Counter
 from typing import Callable, List, Optional, Set
+
+from utils.text_fold import fold
 
 # Similarité de sens de chaque passage à la question (None : indisponible)
 Similarity = Callable[[str, List[str]], Optional[List[float]]]
@@ -146,11 +147,10 @@ def _split(text: str, size: int) -> List[str]:
 
 
 def _terms(text: str) -> List[str]:
-    """Mots significatifs : minuscules, sans accents, synonymes ramenés à un seul mot."""
-    normalized = unicodedata.normalize("NFKD", text.lower())
-    normalized = "".join(c for c in normalized if not unicodedata.combining(c))
+    """Mots significatifs : minuscules, sans accents ni ligatures (« cœur » et « coeur »),
+    synonymes ramenés à un seul mot."""
     terms = []
-    for word in re.findall(r"[a-z0-9]+", normalized):
+    for word in re.findall(r"[a-z0-9]+", fold(text)):
         word = _SYNONYMS.get(word, word)
         if word not in _STOPWORDS and (len(word) > 1 or word.isdigit()):
             # Racine grossière : « charger » et « chargent » donnent « charg »
