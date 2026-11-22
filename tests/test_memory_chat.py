@@ -1102,13 +1102,42 @@ def test_a_message_read_as_a_request_only_is_read_again_without_its_question(kb)
     llm = {"chat_url": "http://127.0.0.1:9/api/chat", "model": "my_ai", "num_ctx": 2048}
 
     for message in ("Je travaille de nuit, tu as des conseils pour dormir ?",
-                    "J'ai mal à la tête aujourd'hui, tu as un conseil ?", "Tu parles espagnol ?"):
+                    "J'ai mal à la tête aujourd'hui, tu as un conseil ?", "Tu parles espagnol ?",
+                    "Je cherche un roman pour ma sœur, tu as une idée ?"):
         memory.update(message, (), llm, False)
 
     assert [call["message"] for call in reader.calls] == [
         "Je travaille de nuit, tu as des conseils pour dormir ?", "Je travaille de nuit.",
-        "J'ai mal à la tête aujourd'hui, tu as un conseil ?", "Tu parles espagnol ?"]
+        "J'ai mal à la tête aujourd'hui, tu as un conseil ?", "Tu parles espagnol ?",
+        "Je cherche un roman pour ma sœur, tu as une idée ?"]
     assert [fact["value"] for fact in kb.get_all_facts()] == ["je travaille de nuit"]
+
+
+def test_what_the_user_looks_for_is_not_kept(kb):
+    """Sans demande, ce qu'il cherche est sa demande du moment, même sans « ? » : de
+    « Je cherche un roman en espagnol pour ma sœur. », le vrai modèle retenait la
+    demande, ou en tirait « ma sœur aime les romans en espagnol ». Ce qu'il dit à côté
+    reste, et « je cherche à… » (j'essaie de) n'est pas une recherche."""
+    reader = _Reader({
+        "Je cherche un roman en espagnol pour ma sœur.": (
+            ["je cherche un roman en espagnol pour ma sœur",
+             "ma sœur aime les romans en espagnol"], []),
+        "Je cherche un roman pour ma sœur, qui vit à Madrid.": (["ma sœur vit à Madrid"], []),
+        "Je cherche un cadeau pour mon frère qui adore la pêche.": (
+            ["mon frère adore la pêche"], []),
+        "Je suis infirmière en réanimation, et je cherche un livre pour me détendre.": (
+            ["je suis infirmière en réanimation"], []),
+        "Je cherche à arrêter de fumer depuis un an.": (["je cherche à arrêter de fumer"], []),
+    })
+    memory = ChatMemory(kb, reader=lambda _llm: reader)
+    llm = {"chat_url": "http://127.0.0.1:9/api/chat", "model": "my_ai", "num_ctx": 2048}
+
+    for message in reader.answers:
+        memory.update(message, (), llm, False)
+
+    assert sorted(fact["value"] for fact in kb.get_all_facts()) == [
+        "je cherche à arrêter de fumer", "je suis infirmière en réanimation",
+        "ma sœur vit à Madrid", "mon frère adore la pêche"]
 
 
 @pytest.mark.parametrize("fact, message, kept", [

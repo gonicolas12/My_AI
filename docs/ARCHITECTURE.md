@@ -471,8 +471,10 @@ conversation Code (ChatMemoryReader, le modèle du chat, ses propres consignes) 
 │   est repris des mots du message (_in_own_words) : sinon, il passait pour une
 │   consigne pour l'IA. S'il n'a tiré d'une question que la demande du moment
 │   (« tu dois me donner des conseils pour dormir »), le message est relu sans
-│   sa question (_said_of_himself). La synthèse qui suit une recherche dans la
-│   mémoire attend cette lecture (memory_kept)
+│   sa question (_said_of_himself). Ce qui vient de ce qu'il cherche (« je
+│   cherche un roman en espagnol pour ma sœur ») n'est pas retenu, même sans
+│   « ? » (_from_a_search). La synthèse qui suit une recherche dans la mémoire
+│   attend cette lecture (memory_kept)
 └─ Seul son message compte (memory_text : rien pour une commande « /… »
     déroulée) : le modèle du chat n'a pas d'outil pour écrire dans la mémoire
 ```
