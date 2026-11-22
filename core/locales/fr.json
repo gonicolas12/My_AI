@@ -116,6 +116,7 @@
   "chat.fileReadyHistory": "✅ Votre fichier est prêt ! Vous pouvez le télécharger en cliquant simplement sur son nom. 👇\n\n🚀 Est-ce que vous souhaitez autre chose ?",
   "chat.interruptedSuffix": "⚠️ *Réponse interrompue.*",
   "chat.interrupted": "⚠️ Réponse interrompue.",
+  "chat.nothingToForget": "Je n'avais rien retenu là-dessus : il n'y a rien à oublier.",
   "chat.messageGone": "Message d'origine introuvable : la conversation a changé depuis l'indexation. Réindexez la recherche, puis réessayez.",
   "chat.folderTooBig": "📁 « {name} » contient plus de {limit} fichiers lisibles : trop pour des pièces jointes. Attachez-le plutôt dans « Dossiers du projet ».",
   "chat.folderEmpty": "📁 Aucun fichier lisible dans « {name} »",

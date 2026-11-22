@@ -114,6 +114,7 @@
   "chat.fileReadyHistory": "✅ 你的文件已准备好！只需点击文件名即可下载。👇\n\n🚀 还需要其他帮助吗？",
   "chat.interruptedSuffix": "⚠️ *回答已中断。*",
   "chat.interrupted": "⚠️ 回答已中断。",
+  "chat.nothingToForget": "我没有记住与此相关的内容：没有什么需要忘记的。",
   "chat.messageGone": "未找到原始消息：索引后对话已发生变化。请重新索引搜索后再试。",
   "chat.folderTooBig": "📁 “{name}”中可读文件超过 {limit} 个：作为附件太多了。请改为在“项目文件夹”中添加它。",
   "chat.folderEmpty": "📁 “{name}”中没有可读文件",
