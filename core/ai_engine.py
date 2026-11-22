@@ -80,6 +80,7 @@ try:
         reply_language,
     )
     from .chat_memory import chat_memory_for
+    from .memory_languages import request_languages
     _KB_AVAILABLE = True
 except ImportError:
     _KB_AVAILABLE = False
@@ -819,6 +820,11 @@ class AIEngine:
             return code
         if self._message_in_english(text):
             return "en"
+        # Une demande de mémoire dans une autre langue (« Merk dir, dass… ») : le bloc
+        # MÉMORISATION, en français, faisait répondre en français
+        request = self._request_language(text)
+        if request:
+            return request
         default = self._default_language()
         if default == "fr":
             return None
@@ -828,6 +834,29 @@ class AIEngine:
         except Exception:
             detected = default
         return default if detected == default else None
+
+    def _request_language(self, text: str) -> Optional[str]:
+        """
+        Langue d'une demande de retenir ou d'oublier dans l'une des dix autres
+        langues de My_AI, lue sur son verbe (« Olvida que tengo un perro » → "es") ;
+        None en français, en anglais ou sans demande. Pour un verbe de deux
+        langues (« memoriza » : es, pt), le détecteur tranche.
+
+        Sans elle, la réponse fixe à un oubli de ce qui n'est pas retenu venait
+        dans la langue de l'appli (_fixed_memory_answer), et le bloc MÉMORISATION,
+        en français, pouvait faire répondre en français.
+        """
+        if not _KB_AVAILABLE or not text:
+            return None
+        codes = request_languages(text)
+        if len(codes) < 2:
+            return codes[0] if codes else None
+        detector = getattr(self, "language_detector", None)
+        try:
+            detected = detector.detect(text) if detector is not None else None
+        except Exception:
+            detected = None
+        return detected if detected in codes else codes[0]
 
     def _setup_mcp_tools(self):
         """
@@ -2264,37 +2293,46 @@ Que voulez-vous que je fasse pour vous ?""",
             self._turn_memorized = update.remembered[0].fact
         return self._turn_memorized
 
-    def _memory_change_note(self) -> str:
+    def _memory_change_note(self, language: Optional[str] = None) -> str:
         """
         Bloc MÉMORISATION d'une demande qui n'a pas retenu une seule information
         (_knowledge_base_context s'en charge alors) : des faits retirés ou
         remplacés, plusieurs retenus, ou rien, faute de savoir quoi, de trouver
         le fait à oublier ou de lire ce qu'il fallait retenir. Sans lui, le
         modèle répondait « c'est noté » de toute façon.
+
+        language : la langue d'une demande faite dans l'une des dix autres langues
+        (_request_language). La consigne la nomme, sans citer la fenêtre Mémoire, et
+        l'exemple est dans cette langue : sinon, le modèle répondait souvent en
+        français, en portugais surtout (voir _knowledge_base_context).
         """
         update = getattr(self, "_turn_memory", None)
         if update is None or not update.asked:
             return ""
         then = (". Son message ne demande rien d'autre : ta réponse se limite à cela."
                 if self._turn_alone() else ", puis réponds au reste de son message.")
+        name = self._LANGUAGE_NAMES.get(language or "")
+        in_language = f", en {name}," if name else ""
         if update.unclear:
             return ("MÉMORISATION : l'utilisateur demande de retenir quelque chose, mais on ne "
                     "sait pas quoi : rien n'a été enregistré. Ne dis pas que c'est noté ; "
-                    "demande-lui en une phrase ce qu'il veut que tu retiennes.")
+                    f"demande-lui en une phrase{in_language} ce qu'il veut que tu retiennes.")
         if update.missing:
             # Juste après des confirmations (« C'est noté : … »), le modèle répondait
             # « C'est noté : j'ai oublié que tu as un chien », alors que rien n'était
             # retenu ni retiré : la phrase attendue lui est donnée. Seul dans son
-            # message, l'oubli reçoit cette phrase sans le modèle (_nothing_to_forget)
+            # message, l'oubli reçoit cette phrase sans le modèle (_fixed_memory_answer)
+            example = tr("chat.nothingToForget", _lang=language) if name else (
+                "Je n'avais rien retenu là-dessus : il n'y a rien à oublier.")
             return ("MÉMORISATION : l'utilisateur demande d'oublier quelque chose, mais rien de "
                     "tel n'est dans ta mémoire persistante : rien n'a été retiré. Ne dis ni "
                     "que c'est noté, ni que tu l'as oublié, retiré ou effacé : dis-lui en une "
-                    "phrase que tu n'avais rien retenu de tel (par exemple : « Je n'avais rien "
-                    f"retenu là-dessus : il n'y a rien à oublier. »){then}")
+                    f"phrase{in_language} que tu n'avais rien retenu de tel (par exemple : "
+                    f"« {example} »){then}")
         if update.failed:
             return ("MÉMORISATION : rien n'a pu être enregistré de ce que l'utilisateur demande "
-                    "de retenir. Ne dis pas que c'est noté ; dis-le-lui en une phrase, et "
-                    f"propose-lui de le reformuler{then}")
+                    "de retenir. Ne dis pas que c'est noté ; dis-le-lui en une "
+                    f"phrase{in_language or ','} et propose-lui de le reformuler{then}")
         done = []
         if update.forgotten:
             done.append("de retirer de ta mémoire persistante : " + " ; ".join(
@@ -2308,37 +2346,80 @@ Que voulez-vous que je fasse pour vous ?""",
                 return ""
             return ("MÉMORISATION : c'était déjà dans ta mémoire persistante : " + " ; ".join(
                 fact_for_prompt(item.fact) for item in update.remembered)
-                + f". Dis-le-lui en une phrase{then}")
+                + f". Dis-le-lui en une phrase{in_language.rstrip(',')}{then}")
+        kept_for = ("" if name else " Cela vaut aussi pour les prochaines conversations "
+                    "(fenêtre 🧠 Mémoire, onglet Faits).")
         return ("MÉMORISATION : à la demande de l'utilisateur, tu viens " + " et ".join(done)
-                + ". Cela vaut aussi pour les prochaines conversations (fenêtre 🧠 Mémoire, "
-                "onglet Faits). Confirme-le brièvement, en lui parlant à la deuxième personne"
-                + then)
+                + f".{kept_for} Confirme-le brièvement{in_language or ','} en lui parlant à "
+                "la deuxième personne" + then)
 
-    def _nothing_to_forget(self, user_input: str, on_token=None) -> str:
+    def _fixed_memory_answer(self, user_input: str, on_token=None) -> str:
         """
-        « Oublie que j'ai un chien », seul, et rien de tel n'est retenu : la réponse est
-        connue, elle est donnée sans le modèle. Juste après des confirmations, il
-        répondait « C'est noté : j'ai oublié que tu as un chien » (9 réponses sur 12) ;
-        avec la phrase attendue dans le bloc MÉMORISATION, il la recopiait, sauf 1 fois
-        sur 12 (« C'est bien effacé de la mémoire persistante »).
+        Une demande de mémoire seule dont la réponse est connue, donnée sans le modèle :
+          - « Oublie que j'ai un chien », et rien de tel n'est retenu. Juste après des
+            confirmations, il répondait « C'est noté : j'ai oublié que tu as un chien »
+            (9 réponses sur 12) ; avec la phrase attendue dans le bloc MÉMORISATION, il
+            la recopiait, sauf 1 fois sur 12 (« C'est bien effacé de la mémoire
+            persistante ») ;
+          - dans les dix autres langues, ce qui a été retenu, oublié ou corrigé
+            (_memory_change_key). En français et en anglais, le modèle confirme.
 
         Returns:
             La réponse, gardée dans l'historique comme une autre ; "" si le message
-            demande autre chose ou qu'un fait a été retiré.
+            demande autre chose, ou si c'est au modèle de répondre.
         """
         update = getattr(self, "_turn_memory", None)
-        if update is None or not (update.asked and update.missing and update.alone):
+        if update is None or not (update.asked and update.alone):
             return ""
-        code = self._reminded_language(user_input)
-        text = tr("chat.nothingToForget", _lang=code)
+        # La langue que la mémoire impose, sinon celle de la demande (« Olvida que
+        # tengo un perro » : en espagnol, même si l'appli est en français)
+        request = self._request_language(user_input)
+        code = self._memory_reply_language() or request
+        if update.missing:
+            key = "chat.nothingToForget"
+        else:
+            key = self._memory_change_key(update) if request else ""
+            if not key:
+                return ""
+        if not code:
+            code = self._reminded_language(user_input)
+        text = tr(key, _lang=code)
         if on_token is not None:
             on_token(text)
         llm = getattr(getattr(self, "local_ai", None), "local_llm", None)
         if llm is not None and hasattr(llm, "add_to_history"):
             llm.add_to_history("user", user_input)
             llm.add_to_history("assistant", text)
-        self.logger.info("process_query_stream ok (rien à oublier, sans le modèle)")
+        self.logger.info("process_query_stream ok (%s, sans le modèle)", key)
         return text
+
+    @staticmethod
+    def _memory_change_key(update: Any) -> str:
+        """
+        La phrase toute faite (clé du catalogue) qui confirme ce qu'une demande dans
+        l'une des dix autres langues a changé : retenu, oublié, corrigé (l'un retiré,
+        l'autre retenu) ou déjà connu ; ou qui dit que rien n'a pu l'être (on ne sait
+        pas quoi retenir, ou ce qui a été lu n'a pas pu être gardé) ; "" sinon (le
+        modèle répond).
+
+        Avec ses consignes en français, le vrai modèle confirmait juste la mémoire,
+        mais pas toujours son texte : « je ne peux pas retirer d'information de ma
+        mémoire » (néerlandais, japonais), « personne ne m'a demandé cela » (arabe),
+        la note « [MEMORISATION] » recopiée (coréen), un bloc JSON (japonais) ; une
+        dizaine de réponses sur 80. L'indicateur « 🧠 Mémorisé », « 🧠 Oublié » montre
+        le fait lui-même.
+        """
+        if update.unclear:
+            return "chat.memoryUnclear"
+        if update.failed:
+            return "chat.memoryFailed"
+        new = any(item.created for item in update.remembered)
+        if update.forgotten:
+            return "chat.memoryReplaced" if new else (
+                "" if update.remembered else "chat.memoryForgotten")
+        if not update.remembered:
+            return ""
+        return "chat.memorySaved" if new else "chat.memoryKnown"
 
     def _turn_alone(self) -> bool:
         """Le message du tour ne fait que demander de retenir : une confirmation, sans
@@ -2717,7 +2798,10 @@ Que voulez-vous que je fasse pour vous ?""",
         # d'un message en anglais
         language = self._memory_reply_language()
         english_message = not language and self._message_in_english(query)
-        reply = "en" if english_message else language or self._default_language()
+        # Une demande de mémoire dans une autre langue (« Recuerda que… ») : la
+        # confirmation n'a pas d'exemple en français, et la langue est rappelée
+        request = None if language or english_message else self._request_language(query)
+        reply = "en" if english_message else language or request or self._default_language()
         examples = self._MEMORY_RULE_EXAMPLES["en" if reply == "en" else "fr"]
 
         block = ""
@@ -2815,14 +2899,23 @@ Que voulez-vous que je fasse pour vous ?""",
                 )
             else:
                 then = ", puis réponds au reste de son message."
+            # Une demande dans une autre langue : la consigne nomme la langue de la
+            # confirmation, sans citer la fenêtre Mémoire. Avec la consigne en
+            # français, le vrai modèle répondait « J'ai enregistré dans ta mémoire
+            # persistante que tu habites à Porto » à « Lembra que moro no Porto » :
+            # 15 réponses sur 18 dans la langue du message (portugais 3 sur 6),
+            # 18 sur 18 ainsi (sonde de 6 demandes, en pt, it, es, de, 3 fois)
+            kept_for = "" if request else (
+                " C'est conservé pour les prochaines conversations (fenêtre 🧠 Mémoire, "
+                "onglet Faits).")
+            in_language = f", en {self._LANGUAGE_NAMES[request]}," if request else ""
             block += ("\n\n" if block else "") + (
                 f"MÉMORISATION : à la demande de l'utilisateur, tu viens d'enregistrer {what} "
-                f"dans ta mémoire persistante : {fact_for_prompt(memorized)}. C'est conservé "
-                "pour les prochaines conversations (fenêtre 🧠 Mémoire, onglet Faits). "
-                f"Confirme-le brièvement {how}{then}"
+                f"dans ta mémoire persistante : {fact_for_prompt(memorized)}.{kept_for} "
+                f"Confirme-le brièvement{in_language} {how}{then}"
             )
         else:
-            change = self._memory_change_note()
+            change = self._memory_change_note(request)
             if change:
                 block += ("\n\n" if block else "") + change
 
@@ -2841,6 +2934,12 @@ Que voulez-vous que je fasse pour vous ?""",
             note = (
                 "LANGUE DE RÉPONSE : l'utilisateur t'écrit en anglais. Réponds-lui en "
                 "anglais, sans commenter ce choix."
+            )
+        elif block and request:
+            name = self._LANGUAGE_NAMES[request]
+            note = (
+                f"LANGUE DE RÉPONSE : l'utilisateur t'écrit en {name}. Réponds-lui en "
+                f"{name}, sans commenter ce choix."
             )
         else:
             return block
@@ -3569,9 +3668,9 @@ Que voulez-vous que je fasse pour vous ?""",
         said = user_input if memory_text is None else memory_text
         self._remember_from_message(said)
         self._memory_indicators(self._turn_memory, on_tool_call)
-        nothing = self._nothing_to_forget(user_input, on_token)
-        if nothing:
-            return nothing
+        fixed = self._fixed_memory_answer(user_input, on_token)
+        if fixed:
+            return fixed
         later = self._read_memory_later(said, is_interrupted_callback)
         try:
             return self._process_query_stream(

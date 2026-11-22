@@ -44,6 +44,7 @@ from core.knowledge_base_manager import (
     extract_remember_request,
     fact_for_prompt,
     fact_scope,
+    forget_object,
     is_only_remember_request,
     is_rememberable,
     memorization_confirmation,
@@ -52,10 +53,22 @@ from core.knowledge_base_manager import (
     project_name,
     remember_block,
 )
+from core.memory_languages import (
+    forgets_a_fact,
+    is_request,
+    remember_verb_last,
+    request_languages,
+    scope_phrases,
+    word_count,
+)
 from utils.text_fold import fold
 
 logger = logging.getLogger(__name__)
 
+# Les mêmes précisions dans les dix autres langues (core/memory_languages.py) : en
+# mots entiers, puis, en chinois, japonais et coréen, collées à leurs voisins
+_OTHER_ALL_PROJECTS, _JOINED_ALL_PROJECTS = scope_phrases("all")
+_OTHER_THIS_PROJECT, _JOINED_THIS_PROJECT = scope_phrases("this")
 # Retenu pour tous ses projets : « retiens pour tous mes projets que… »,
 # « … dans tous mes repos », « remember for all my projects that… ».
 # « partout » n'en est pas : « je veux des logs partout » parle du code.
@@ -65,7 +78,9 @@ _ALL_PROJECTS_RE = re.compile(
     r"(?:projets|repos|d[ée]p[ôo]ts|codes|workspaces)"
     r"|(?:for|in|across)\s+(?:all|every)\s+(?:of\s+)?(?:my\s+|the\s+|our\s+)?"
     r"(?:projects?|repos(?:itories)?|codebases?|workspaces?)"
-    r")(?![\w'’])",
+    rf"|{_OTHER_ALL_PROJECTS}"
+    r")(?![\w'’])"
+    rf"|{_JOINED_ALL_PROJECTS}",
     re.IGNORECASE,
 )
 # Pour ce projet, ce qui est de toute façon le cas : la précision quitte le fait
@@ -73,7 +88,9 @@ _THIS_PROJECT_RE = re.compile(
     r"(?<![\w'’])(?:"
     r"(?:pour|dans|sur)\s+(?:ce|le)\s+(?:projet|repo|d[ée]p[ôo]t|workspace)(?:-ci|-l[àa])?"
     r"|(?:for|in)\s+this\s+(?:project|repo(?:sitory)?|codebase|workspace)"
-    r")(?![\w'’])",
+    rf"|{_OTHER_THIS_PROJECT}"
+    r")(?![\w'’])"
+    rf"|{_JOINED_THIS_PROJECT}",
     re.IGNORECASE,
 )
 # Faits déjà retenus montrés au modèle qui lit le message (les plus récents), et
@@ -92,6 +109,12 @@ _FORGET_FACT_RE = re.compile(
     r"m[ée]moire|retenu|memory|remember|(?<![\w'’-])oublie[sz]?\s+(?:que|qu['’])",
     re.IGNORECASE,
 )
+
+
+def _forgets_a_fact(message: str) -> bool:
+    """La demande d'oubli vise-t-elle un fait ou la mémoire (_FORGET_FACT_RE ; dans les
+    dix autres langues, « olvida que… », « 忘掉我住在北京 » : forgets_a_fact) ?"""
+    return bool(_FORGET_FACT_RE.search(message)) or forgets_a_fact(message)
 
 
 def _plain(text: str) -> str:
@@ -139,12 +162,17 @@ def _trim_scope(fact: str) -> str:
     return fact.rstrip(" ,;:")
 
 
+# Ponctuation finale d'un fait, toutes écritures (« 我住在北京。 » : sans elle, un
+# doublon de « 我住在北京 »)
+_FACT_END = " ?!.;,:。！？；，、：؟،؛"
+
+
 def _clean_fact(text: str) -> str:
     """Une information lue par le modèle, nettoyée ; "" si ce n'en est pas une
     (« rien », que le vrai modèle écrivait parfois au lieu d'une liste vide)."""
-    fact = re.sub(r"\s+", " ", text).strip().rstrip(" ?!.;,:")
-    if len(fact) > 1 and fact[0] in "\"'«“`" and fact[-1] in "\"'»”`":
-        fact = fact[1:-1].strip().rstrip(" ?!.;,:")
+    fact = re.sub(r"\s+", " ", text).strip().rstrip(_FACT_END)
+    if len(fact) > 1 and fact[0] in "\"'«“`「『" and fact[-1] in "\"'»”`」』":
+        fact = fact[1:-1].strip().rstrip(_FACT_END)
     fact = _trim_scope(fact)
     return fact if is_rememberable(fact) else ""
 
@@ -221,11 +249,53 @@ def _asks_nothing_else(message: str, fact: str) -> bool:
     if fact in text:
         return is_only_remember_request(text, fact)
     written = extract_remember_request(text)
-    if written and _loose(written) == _loose(fact):
-        # Le modèle a repris ses mots, à la casse ou à un pluriel près
+    if written and (_loose(written) == _loose(fact) or _same_words(written, fact)
+                    or remember_verb_last(text)):
+        # Le modèle a repris ses mots, à la casse, à un pluriel ou à leur ordre près
+        # (« Ich wohne in Hamburg » de « Merk dir, dass ich in Hamburg wohne ») ; ou
+        # le verbe vient en dernier (japonais, coréen) : le fait est tout ce qui le
+        # précède
         return is_only_remember_request(text, written)
     # « Retiens-le », « retiens bien ça » : rien d'autre que le renvoi
     return only_asks_to_remember(text)
+
+
+def _same_words(first: str, second: str) -> bool:
+    """Les deux phrases ont-elles les mêmes mots qui comptent (content_words) ?"""
+    words = set(content_words(first))
+    return bool(words) and words == set(content_words(second))
+
+
+def _covered(fact: str, text: str) -> bool:
+    """Tous les mots qui comptent de fact sont-ils dans text ?"""
+    words = set(content_words(fact))
+    return bool(words) and words <= set(content_words(text))
+
+
+def _in_their_words(fact: str, message: str, written: str) -> bool:
+    """
+    Le fait est-il écrit avec les mots du message (tous ses mots qui comptent en
+    viennent), sans recopier la demande elle-même ? written : ce que les règles en
+    lisent. « Ricorda che abito a Torino » recopie le verbe ; « j'habite à Porto »,
+    de « Lembra que moro no Porto », est une traduction.
+    """
+    if not _covered(fact, message):
+        return False
+    return not (_loose(written) in _loose(fact) and _loose(written) != _loose(fact))
+
+
+def _last_statement(context: Sequence[Tuple[str, str]]) -> str:
+    """
+    Sa dernière information dans les échanges : son dernier message, nettoyé, s'il n'est
+    ni une question, ni une autre demande, ni lui-même une demande de mémoire ; "" sinon.
+    """
+    for who, text in reversed(list(context)):
+        if who != "Utilisateur":
+            continue
+        if asks_to_remember(text) or asks_to_forget(text) or is_request(text):
+            return ""
+        return _clean_fact(text)
+    return ""
 
 
 def _known_wording(fact: str, known: Sequence[Dict[str, Any]]) -> str:
@@ -705,6 +775,16 @@ def apply_reading(kb: Any, message: str, reading: Reading, known: Sequence[Dict[
     block = _trim_scope(block) if block else None
     if block:
         facts = [block]
+    elif asked and facts and asks_to_forget(message) and not asks_to_remember(message):
+        # Une demande d'oubli : ce qu'elle désigne n'est pas à retenir. Le vrai modèle
+        # retenait « أنا أملك كلبًا » (j'ai un chien) de « انس أنني أملك كلبا » (oublie
+        # que j'ai un chien)
+        target = forget_object(message)
+        misread = [fact for fact in facts if target and _covered(fact, target)]
+        for fact in misread:
+            logger.info("%s : « %s » est ce qu'il demande d'oublier, pas retenu", label,
+                        fact[:80])
+        facts = [fact for fact in facts if fact not in misread]
 
     # Ce que l'utilisateur a écrit : son message ; pour une demande, aussi ce à
     # quoi il renvoie (« retiens ça », « retiens-le pour tous mes projets »).
@@ -740,6 +820,16 @@ def apply_reading(kb: Any, message: str, reading: Reading, known: Sequence[Dict[
         return kept
 
     kept = keep(facts)
+    if asked and kept and rules is not None and request_languages(message):
+        # Dans les dix autres langues, le modèle, dont les consignes sont en français,
+        # traduisait parfois le fait (« j'habite à Porto », de « Lembra que moro no
+        # Porto ») ou recopiait le verbe (« Ricorda che abito a Torino ») : ce que les
+        # règles lisent, ses mots, le remplace
+        written, rule_scope = rules(message)
+        if written and any(not _in_their_words(fact, message, written) for fact in kept):
+            logger.info("%s : %s remplacé par ses mots : « %s »", label,
+                        [fact[:60] for fact in kept], written[:80])
+            kept, scope = [written], rule_scope
     if (asked and reread is not None and (not kept or any(map(_SECOND_PERSON_RE.match, kept)))
             and only_asks_to_remember(_without_scope(message))):
         # « Retiens ça » dont le modèle n'a rien tiré : relu sur ce que l'utilisateur
@@ -766,8 +856,27 @@ def apply_reading(kb: Any, message: str, reading: Reading, known: Sequence[Dict[
         fact, rule_scope = rules(message) if rules else (None, scope)
         if fact:
             kept, scope = [fact], rule_scope
-    # Un remplacement dont le nouveau fait n'a pas pu être gardé : l'ancien reste
-    failed = bool(facts) and not kept
+    if asked and request_languages(message) and only_asks_to_remember(_without_scope(message)):
+        # Un renvoi dans les dix autres langues (« 记住这个 ») : ce qui est retenu vient
+        # tout entier de ses propres messages. Le vrai modèle, dont les consignes sont en
+        # français, recopiait l'exemple de sa consigne (« mon frère s'appelle Paul »),
+        # qu'un seul mot commun avec la réponse en français de l'assistant laissait
+        # passer ; ou il traduisait sa phrase. Sinon : sa dernière information, ses mots
+        own = " ".join([message] + [text for who, text in context if who == "Utilisateur"])
+        mine = [fact for fact in kept if _covered(fact, own)]
+        if not mine:
+            said = _last_statement(context)
+            mine = [said] if said else []
+        if mine != kept:
+            logger.info("%s : renvoi, %s remplacé par ses mots : %s", label,
+                        [fact[:60] for fact in kept], [fact[:60] for fact in mine])
+            kept = mine
+    # Un remplacement dont le nouveau fait n'a pas pu être gardé : l'ancien reste. Pas
+    # pour une demande qui ne fait qu'oublier : rien n'y était à retenir, et le vrai
+    # modèle proposait parfois un fait (une traduction) à « انس أنني أملك كلبا » ; la
+    # demande comptait comme ratée, et la réponse disait l'avoir supprimé
+    failed = bool(facts) and not kept and not (
+        asked and asks_to_forget(message) and not asks_to_remember(message))
     if scope == SCOPE_PROJECT and not project:
         scope = SCOPE_CODE
     where = project if scope == SCOPE_PROJECT else ""
@@ -778,6 +887,18 @@ def apply_reading(kb: Any, message: str, reading: Reading, known: Sequence[Dict[
         forget = []
     elif not asked:
         forget = forget[:_MAX_SPONTANEOUS_FORGET]
+    elif not forget and not kept and asks_to_forget(message) and not asks_to_remember(message):
+        # Une demande d'oubli dont le modèle n'a rien désigné : le fait connu qui a les
+        # mêmes mots que ce qu'elle désigne, s'il y en a un, confirmé ensuite comme les
+        # autres. Le vrai modèle lisait parfois « انس أنني أعيش في دبي » (oublie que
+        # j'habite à Dubaï) comme une demande de retenir : rien n'était retiré, et la
+        # réponse disait n'avoir rien retenu
+        target = forget_object(message)
+        forget = [fact for fact in shown
+                  if target and _same_words(str(fact.get("value") or ""), target)]
+        for fact in forget:
+            logger.info("%s : « %s » a les mots de ce qu'il demande d'oublier", label,
+                        str(fact.get("value") or "")[:80])
     if forget and confirm is not None:
         forget = _confirmed(confirm, message, kept, forget, asked, label)
     if wanted is not None and not wanted():
@@ -810,9 +931,12 @@ def apply_reading(kb: Any, message: str, reading: Reading, known: Sequence[Dict[
             update.alone = only_asks_to_forget(_without_scope(message))
     elif failed:
         update.failed = True
+        # « Retiens ça » seul : rien d'autre à faire que le dire, sans outils (le vrai
+        # modèle cherchait dans sa mémoire, puis répondait en français à « 记住这个 »)
+        update.alone = only_asks_to_remember(_without_scope(message))
     elif only_asks_to_remember(_without_scope(message)):
         update.unclear = update.alone = True
-    elif asks_to_forget(message) and _FORGET_FACT_RE.search(message):
+    elif asks_to_forget(message) and _forgets_a_fact(message):
         update.missing = True
         update.alone = only_asks_to_forget(_without_scope(message))
     return update
@@ -929,7 +1053,7 @@ class CodeMemory:
             return None
         if asked is None:
             asked = self.asks(message)
-        if not asked and len(message.split()) < _MIN_SPONTANEOUS_WORDS:
+        if not asked and word_count(message) < _MIN_SPONTANEOUS_WORDS:
             return None
         reader = self._reader(llm) if self._reader is not None and llm else None
         if not asked and reader is None:

@@ -18,11 +18,20 @@ faits du code, que la fenêtre Mémoire montre de même.
 
 from __future__ import annotations
 
+import functools
 import logging
 import re
+import unicodedata
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
-from core.code_memory import MemoryReader, MemoryUpdate, Reading, apply_reading, rereader
+from core.code_memory import (
+    MemoryReader,
+    MemoryUpdate,
+    Reading,
+    _clean_fact,
+    apply_reading,
+    rereader,
+)
 from core.knowledge_base_manager import (
     SCOPE_CHAT,
     SCOPE_PROJECT,
@@ -34,6 +43,9 @@ from core.knowledge_base_manager import (
     is_assistant_fact,
     project_name,
 )
+from core.language_detector import LanguageDetector
+from core.memory_languages import LANGUAGES, Part, message_parts, word_count
+from utils.text_fold import fold
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +55,10 @@ _MAX_KNOWN_FACTS = 40
 # un long texte collé, qui parle rarement de lui (et un article qui dit « j'habite
 # à Paris » n'est pas lui)
 _MIN_SPONTANEOUS_WORDS = 3
+# Dans les dix autres langues, deux mots suffisent : « Я врач », « أنا طبيب », « Soy
+# médico » disent sans verbe « être » ou sans « je » ce que « je suis médecin » dit en
+# trois
+_MIN_SPONTANEOUS_WORDS_ELSEWHERE = 2
 _MAX_SPONTANEOUS_CHARS = 1500
 # Sans demande, une consigne pour l'IA (« tu dois… ») tirée d'une question qui ne la
 # dit pas durable est sa demande du moment : « Je travaille de nuit, tu as des
@@ -62,7 +78,12 @@ _LASTING_RE = re.compile(
 _SECRET_RE = re.compile(
     r"(?<![\w'’])(?:mots?\s+de\s+passe|digicodes?|passwords?|passcodes?|pin"
     r"|(?:le|la|les|mon|ma|mes|ton|ta|tes|son|sa|ses|un|ce|cet|l['’])\s*codes?"
-    r"(?!\s+postal))(?![\w'’])",
+    r"(?!\s+postal)"
+    # Les mots de passe des dix autres langues (core/memory_languages.py)
+    r"|contrase[ñn]as?|passw[öo]rter|passwort|kennw[öo]rter|kennwort|senhas?"
+    r"|wachtwoord(?:en)?|парол(?:ь|и|я|ем)|كلمة\s+(?:المرور|السر)|كلمات\s+المرور"
+    r")(?![\w'’])"
+    r"|密码|密碼|口令|パスワード|暗証番号|비밀번호|패스워드",
     re.IGNORECASE,
 )
 # Ce qu'il dit de lui, le modèle l'écrivait parfois à la deuxième personne, en
@@ -183,6 +204,44 @@ _CHAT_SPONTANEOUS_EXAMPLES = (
 )
 
 
+@functools.lru_cache(maxsize=1)
+def _detector() -> LanguageDetector:
+    """Le détecteur de langue de My_AI ; dans le doute, le français."""
+    return LanguageDetector(default_language="fr")
+
+
+def message_language(message: str) -> str:
+    """Langue du message parmi les dix autres de My_AI (« Я врач. » → "ru") ; "" en
+    français, en anglais ou dans le doute."""
+    code = _detector().detect(message or "")
+    return code if code in LANGUAGES else ""
+
+
+# Sans demande, dans les dix autres langues : ce qu'il a retenu, écrit en français, est
+# repris des parties du message qui le disent (_in_his_words). Le modèle n'écrit que
+# des numéros : les mots sont ceux du message
+_CHAT_PARTS_SYSTEM = (
+    "Tu tiens la mémoire de My_AI, un assistant personnel. On a tiré des informations du "
+    "message de l'utilisateur, écrit dans une autre langue, et on les a écrites en "
+    "français. Pour chacune, dis quelles parties de son message la disent.\n"
+    "\n"
+    "Réponds seulement par un objet JSON, une clé par information : {\"1\": [numéros], "
+    "\"2\": [numéros]}. Une liste vide pour une information qu'aucune de ces parties ne "
+    "dit."
+)
+
+
+def _parts_prompt(message: str, said: Sequence[str], facts: Sequence[str]) -> str:
+    """Ce que le modèle lit pour dire quelles parties du message disent chaque fait."""
+    if len(message) > 4000:
+        message = message[:4000] + "…"
+    lines = ["Son message :", message, "", "Ses parties :"]
+    lines.extend(f"{number}. {text}" for number, text in enumerate(said, 1))
+    lines += ["", "Informations tirées de son message :"]
+    lines.extend(f"{number}. {fact}" for number, fact in enumerate(facts, 1))
+    return "\n".join(lines)
+
+
 def _chat_prompt(message: str, context: Sequence[Tuple[str, str]],
                  known: Sequence[Tuple[str, str]], _project: str = "") -> str:
     """Ce que le modèle lit : les faits retenus, numérotés, les échanges précédents
@@ -210,6 +269,32 @@ class ChatMemoryReader(MemoryReader):
     def prompt(message: str, context: Sequence[Tuple[str, str]],
                known: Sequence[Tuple[str, str]], project: str) -> str:
         return _chat_prompt(message, context, known, project)
+
+    def parts(self, message: str, said: Sequence[str], facts: Sequence[str]) -> List[List[int]]:
+        """
+        Pour chaque fait (écrit en français), les numéros des parties said du message
+        qui le disent (_in_his_words).
+
+        Raises:
+            requests.RequestException, ValueError: modèle injoignable, réponse illisible.
+        """
+        keys = [str(number) for number in range(1, len(facts) + 1)]
+        schema = {"type": "object",
+                  "properties": {key: {"type": "array", "items": {"type": "integer"}}
+                                 for key in keys},
+                  "required": keys}
+        data = self._ask(_CHAT_PARTS_SYSTEM, _parts_prompt(message, said, facts), schema,
+                         20 + 20 * len(keys))
+        chosen = []
+        for key in keys:
+            numbers = []
+            for item in data.get(key) or []:
+                try:
+                    numbers.append(int(item))
+                except (TypeError, ValueError):
+                    continue
+            chosen.append(numbers)
+        return chosen
 
 
 def _known_lines(known: Sequence[Dict[str, Any]]) -> List[Tuple[str, str]]:
@@ -313,13 +398,20 @@ def _read(reader: Any, text: str, message: str, context: Sequence[Tuple[str, str
     return reading
 
 
-def _drop_unwanted(reading: Reading, message: str) -> List[str]:
+def _drop_unwanted(reading: Reading, message: str, elsewhere: bool = False) -> List[str]:
     """
     Sans demande, retire de reading ce qui ne se retient pas : une consigne tirée d'une
     question qui ne la dit pas durable (sa demande du moment), ce qui vient de ce qu'il
     cherche, un code ou un mot de passe. Renvoie les consignes tirées d'une question.
+
+    elsewhere : le message est dans l'une des dix autres langues. Le vrai modèle y
+    écrivait à la deuxième personne ce qu'il dit de lui (« tu travailles la nuit comme
+    infirmier », de « Trabajo de noche como enfermero, ¿tienes consejos…? »), que la
+    règle des consignes écartait, sans _in_own_words pour le reprendre de ses mots
+    (français) : ce sont les parties de son message qui disent qui en décident
+    (_in_his_words), et sa question n'en est jamais une.
     """
-    question = "?" in message and not _LASTING_RE.search(message)
+    question = not elsewhere and "?" in message and not _LASTING_RE.search(message)
     momentary = []
     for fact in list(reading.remember):
         if question and is_assistant_fact(fact):
@@ -335,6 +427,99 @@ def _drop_unwanted(reading: Reading, message: str) -> List[str]:
             logger.info("Chat : « %s » est un code, retenu seulement sur demande", fact[:80])
             reading.remember.remove(fact)
     return momentary
+
+
+def _squeezed(text: str) -> str:
+    """text sans casse, accents, espaces ni ponctuation : « ich wohne in hamburg » se
+    retrouve dans « Ich wohne in Hamburg. »."""
+    return re.sub(r"[\W_]+", "", unicodedata.normalize("NFC", fold(text)))
+
+
+def _joined(message: str, parts: Sequence[Part], picked: Sequence[Part]) -> str:
+    """Les parties picked du message, avec ses mots et sa ponctuation : celles qui se
+    suivent d'un seul tenant (« Мою сестру зовут Маша, она живёт в Казани »)."""
+    runs: List[List[int]] = []
+    for part in picked:
+        index = parts.index(part)
+        if runs and runs[-1][1] == index - 1:
+            runs[-1][1] = index
+        else:
+            runs.append([index, index])
+    return " ".join(message[parts[first].start:parts[last].end] for first, last in runs)
+
+
+def _in_his_words(reading: Reading, message: str, reader: Any) -> None:
+    """
+    Sans demande, dans les dix autres langues de My_AI : ce qui est retenu, ses mots.
+
+    Ses consignes et ses exemples en français faisaient traduire le vrai modèle (« ma
+    sœur s'appelle Masha et elle habite à Kazan », de « Мою сестру зовут Маша, она живёт
+    в Казани ») ; ces mots ne venant pas de l'utilisateur, rien n'était retenu. Sonde
+    de 90 messages dans les dix langues, deux fois chacun : informations durables
+    retenues 19 fois sur 64, aucune en russe, chinois, arabe ni coréen. Lui nommer la
+    langue du message les faisait retenir, mais il recopiait alors tout, la météo
+    demandée comme le poème à écrire (rien à retenir : 15 messages sur 80, contre 77).
+
+    Il décide donc comme avant ; ce qu'il retient est repris des parties du message qui
+    le disent, sans ce qu'elles demandent (message_parts) : la seule, ou celles qu'il
+    désigne (ChatMemoryReader.parts). Un fait qu'il a déjà écrit avec ses mots reste.
+    Mêmes messages : 64 sur 64, rien à retenir 80 sur 80 ; lot écrit ensuite, aux
+    tournures nouvelles : 66 sur 66 (12 avant), rien à retenir 46 sur 46.
+    """
+    if not reading.remember:
+        return
+    parts = message_parts(message)
+    said = [part for part in parts if part.says]
+    runs = [_squeezed(_joined(message, parts, [part])) for part in said]
+    runs.append(_squeezed(_joined(message, parts, said)))
+    if said and all(_squeezed(fact) and any(_squeezed(fact) in run for run in runs)
+                    for fact in reading.remember):
+        return
+    facts: List[str] = []
+    if len(parts) == 1 and said:
+        # Le message ne dit que cela : « Я врач », « 我吃素已经十年了 »
+        facts = [said[0].text]
+    elif said:
+        chooser = getattr(reader, "parts", None)
+        try:
+            chosen = chooser(message, [part.text for part in said],
+                             list(reading.remember)) if chooser else []
+        except Exception as exc:  # pylint: disable=broad-except
+            logger.warning("Chat : parties du message non lues (%s)", exc)
+            chosen = []
+        for numbers in chosen:
+            picked = [said[number - 1] for number in sorted(set(numbers))
+                      if 1 <= number <= len(said)]
+            text = _joined(message, parts, picked) if picked else ""
+            if text and text not in facts:
+                facts.append(text)
+    kept = [fact for fact in (_clean_fact(text) for text in facts) if fact]
+    logger.info("Chat : %s repris de ses mots : %s", [fact[:60] for fact in reading.remember],
+                [fact[:60] for fact in kept])
+    reading.remember = kept
+
+
+def _kept_without_request(reader: Any, reading: Reading, message: str,
+                          lines: Sequence[Tuple[str, str]], elsewhere: bool) -> Reading:
+    """
+    Sans demande, ce que la lecture garde : sans ce qui ne se retient pas
+    (_drop_unwanted), relue sans sa question s'il le faut ; dans les dix autres langues
+    (elsewhere), avec ses mots (_in_his_words).
+    """
+    momentary = _drop_unwanted(reading, message, elsewhere)
+    said = _said_of_himself(message) if momentary and not reading.remember else ""
+    if len(said.split()) >= _MIN_SPONTANEOUS_WORDS:
+        # « Je travaille de nuit, tu as des conseils pour dormir ? » : le modèle n'en
+        # tirait parfois que sa demande du moment (« tu dois me donner des conseils pour
+        # dormir »), écartée. Relu sans sa question, il ne reste que ce qu'il dit de lui
+        # (« Je travaille de nuit. »)
+        again = _read(reader, said, message, [], lines, False, "relu sans sa question")
+        _drop_unwanted(again, message)
+        if again.remember:
+            reading = again
+    if elsewhere:
+        _in_his_words(reading, message, reader)
+    return reading
 
 
 class ChatMemory:
@@ -377,8 +562,11 @@ class ChatMemory:
             return None
         if asked is None:
             asked = self.asks(message)
-        if not asked and (len(message.split()) < _MIN_SPONTANEOUS_WORDS
-                          or len(message) > _MAX_SPONTANEOUS_CHARS):
+        if not asked and len(message) > _MAX_SPONTANEOUS_CHARS:
+            return None
+        elsewhere = not asked and bool(message_language(message))
+        if not asked and word_count(message) < (
+                _MIN_SPONTANEOUS_WORDS_ELSEWHERE if elsewhere else _MIN_SPONTANEOUS_WORDS):
             return None
         reader = self._reader(llm) if self._reader is not None and llm else None
         if not asked and reader is None:
@@ -392,17 +580,7 @@ class ChatMemory:
         reading = _read(reader, message, message, list(context) if asked else [], lines, asked,
                         "demande" if asked else "sans demande")
         if not asked:
-            momentary = _drop_unwanted(reading, message)
-            said = _said_of_himself(message) if momentary and not reading.remember else ""
-            if len(said.split()) >= _MIN_SPONTANEOUS_WORDS:
-                # « Je travaille de nuit, tu as des conseils pour dormir ? » : le modèle
-                # n'en tirait parfois que sa demande du moment (« tu dois me donner des
-                # conseils pour dormir »), écartée. Relu sans sa question, il ne reste
-                # que ce qu'il dit de lui (« Je travaille de nuit. »)
-                again = _read(reader, said, message, [], lines, False, "relu sans sa question")
-                _drop_unwanted(again, message)
-                if again.remember:
-                    reading = again
+            reading = _kept_without_request(reader, reading, message, lines, elsewhere)
         return apply_reading(
             self._kb, message, reading, known, shown, asked=asked, scope=SCOPE_CHAT,
             context=context, rules=lambda text: (extract_remember_request(text), SCOPE_CHAT),

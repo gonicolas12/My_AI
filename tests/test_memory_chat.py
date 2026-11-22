@@ -788,11 +788,15 @@ class _Reader:
     """Le modèle du chat qui lit ce qu'un message change dans la mémoire, joué par le
     test : (à retenir, numéros à oublier) selon le message."""
 
-    def __init__(self, answers, verdicts=None):
+    def __init__(self, answers, verdicts=None, parts=None):
         self.answers = answers
         # Second appel (confirm) : chaque fait à retirer est-il bien visé ? Oui par défaut
         self.verdicts = verdicts or {}
+        # Sans demande, dans les dix autres langues : les parties du message qui disent
+        # chaque fait (ChatMemoryReader.parts) ; aucune par défaut
+        self.chosen_parts = parts or {}
         self.calls = []
+        self.part_calls = []
 
     def __call__(self, message, context, known, project, asked):
         self.calls.append({"message": message, "context": context, "known": known,
@@ -802,6 +806,10 @@ class _Reader:
 
     def confirm(self, message, _new, candidates, _asked):
         return self.verdicts.get(message, [True] * len(candidates))
+
+    def parts(self, message, said, facts):
+        self.part_calls.append((message, list(said), list(facts)))
+        return self.chosen_parts.get(message, [[] for _fact in facts])
 
 
 def _reading(monkeypatch, answers, verdicts=None):
@@ -883,6 +891,263 @@ def test_forgetting_what_is_not_in_memory_with_another_request(kb, ollama, monke
     assert "rien de tel n'est dans ta mémoire persistante" in systems[0]
     assert "ni que tu l'as oublié, retiré ou effacé" in systems[0]
     assert "il n'y a rien à oublier" in systems[0]
+    assert "puis réponds au reste de son message" in systems[0]
+
+
+# ── Dans les dix autres langues (core/memory_languages.py) ──────────────────
+
+
+def test_forgetting_in_another_language_what_is_not_in_memory(kb, ollama, monkeypatch):
+    """« Olvida que tengo un perro » n'était pas une demande : la lecture sans demande ne
+    retire rien, et le modèle pouvait répondre qu'il l'avait oublié. La phrase fixe vient
+    en espagnol, même avec l'appli en français."""
+    message = "Olvida que tengo un perro"
+    _reading(monkeypatch, {message: ([], [])})
+    engine, calls, tokens = _engine(kb), [], []
+
+    answer = engine.process_query_stream(message, on_token=tokens.append,
+                                         on_tool_call=lambda name, args: calls.append(name))
+
+    assert answer == "".join(tokens) == tr("chat.nothingToForget", _lang="es")
+    assert calls == [] and not ollama.requests
+    assert engine.local_ai.local_llm.streamed_systems == []
+
+
+def _ask(engine, message):
+    """La réponse à message, ses morceaux et ses indicateurs (nom, arguments)."""
+    calls, tokens = [], []
+    answer = engine.process_query_stream(message, on_token=tokens.append,
+                                         on_tool_call=lambda name, args: calls.append((name, args)))
+    assert answer == "".join(tokens)
+    return answer, calls
+
+
+@pytest.mark.parametrize(
+    ("message", "read", "fact", "code"),
+    [
+        ("Запомни, что я живу в Москве", "я живу в Москве", "я живу в Москве", "ru"),
+        ("记住我住在北京", "我住在北京", "我住在北京", "zh"),
+        # Reformulé par le modèle : ses mots, lus par les règles, le remplacent
+        ("내가 채식주의자라는 걸 기억해 줘", "나는 채식주의자야", "내가 채식주의자다", "ko"),
+        # Les mêmes mots dans un autre ordre : la demande reste seule. Elle ne l'était
+        # plus : les outils restaient, et la synthèse répondait en français
+        ("Merk dir, dass ich in Hamburg wohne", "Ich wohne in Hamburg", "Ich wohne in Hamburg",
+         "de"),
+    ],
+)
+def test_remember_in_another_language(kb, ollama, monkeypatch, message, read, fact, code):
+    """Retenu avec ses mots, confirmé dans sa langue. Avant, en russe, chinois, japonais,
+    coréen ou arabe, aucun mot n'y comptait : le fait ne venait « pas de l'utilisateur »,
+    et rien n'était retenu ; en chinois et en japonais, sans espaces, il n'avait même qu'un
+    mot. Seule, la demande reçoit une phrase toute faite : avec ses consignes en français,
+    le modèle confirmait juste la mémoire, mais pas toujours son texte."""
+    _reading(monkeypatch, {message: ([read], [])})
+    engine = _engine(kb)
+
+    answer, calls = _ask(engine, message)
+
+    assert [item["value"] for item in kb.get_all_facts()] == [fact]
+    assert calls == [("remember_fact", {"fact": fact})]
+    assert answer == tr("chat.memorySaved", _lang=code)
+    assert engine.local_ai.local_llm.streamed_systems == [] and not ollama.requests
+
+
+@pytest.mark.parametrize(
+    ("message", "read", "kept", "code"),
+    [
+        # Traduit par le modèle, dont les consignes sont en français
+        ("Lembra que moro no Porto", "j'habite à Porto", "moro no Porto", "pt"),
+        # Le verbe de la demande recopié
+        ("Ricorda che abito a Torino", "Ricorda che abito a Torino", "abito a Torino", "it"),
+        ("تذكر أنني أعيش في دبي", "أنا أتعلم أنك تعيش في دبي", "أنني أعيش في دبي", "ar"),
+    ],
+)
+def test_remember_in_another_language_keeps_his_words(kb, ollama, monkeypatch, message, read,
+                                                      kept, code):
+    """Le vrai my_ai écrivait ces faits-là (2026-11-22) : ses mots, lus par les règles,
+    les remplacent."""
+    _reading(monkeypatch, {message: ([read], [])})
+
+    answer, _calls = _ask(_engine(kb), message)
+
+    assert [item["value"] for item in kb.get_all_facts()] == [kept]
+    assert answer == tr("chat.memorySaved", _lang=code)
+
+
+def test_remember_in_another_language_with_another_request(kb, ollama, monkeypatch):
+    """Autre chose à faire : le modèle répond. Le bloc MÉMORISATION nomme sa langue, sans
+    citer la fenêtre Mémoire ni donner d'exemple en français, et la langue est rappelée à la
+    fin de son message : avec la consigne en français seule, le vrai modèle répondait
+    souvent en français (portugais : 3 réponses sur 6)."""
+    message = "Запомни, что я живу в Москве, и предложи мне ресторан"
+    _reading(monkeypatch, {message: (["я живу в Москве"], [])})
+    ollama.replies.append("Я запомнил, что ты живёшь в Москве. Вот ресторан.")
+    engine = _engine(kb)
+
+    _answer, calls = _ask(engine, message)
+
+    assert [item["value"] for item in kb.get_all_facts()] == ["я живу в Москве"]
+    assert calls == [("remember_fact", {"fact": "я живу в Москве"})]
+    system = ollama.systems()[0]
+    assert "tu viens d'enregistrer ce fait dans ta mémoire persistante" in system
+    assert "Confirme-le brièvement, en russe, en lui parlant" in system
+    assert "C'est conservé pour les prochaines conversations" not in system
+    assert "(par exemple : « C'est noté" not in system
+    assert "puis réponds au reste de son message" in system
+    assert "LANGUE DE RÉPONSE : l'utilisateur t'écrit en russe." in system
+    assert ollama.requests[0]["messages"][-1]["content"].endswith(
+        "(Всегда отвечай на русском языке.)")
+
+
+@pytest.mark.parametrize(
+    ("message", "read", "language"),
+    [
+        ("انس أنني أملك كلبا", "أنا أملك كلبًا", "ar"),
+        # Un fait qui ne peut pas être gardé (une traduction) : la demande ne comptait plus
+        # comme un oubli, mais comme ratée, et la réponse disait l'avoir supprimé
+        ("انس أنني أملك كلبا", "j'ai un chien", "ar"),
+        ("Oublie que je suis végétarien", "je suis végétarien", None),
+    ],
+)
+def test_forgetting_is_not_remembering(kb, ollama, monkeypatch, message, read, language):
+    """Le vrai my_ai lisait « انس أنني أملك كلبا » (oublie que j'ai un chien) comme une
+    demande de retenir, et « 🧠 Mémorisé : أنا أملك كلبًا » s'affichait. Ce que la
+    demande d'oubli désigne n'est pas retenu ; rien de tel n'était retenu : la phrase
+    fixe."""
+    _reading(monkeypatch, {message: ([read], [])})
+
+    answer, calls = _ask(_engine(kb), message)
+
+    assert kb.get_all_facts() == [] and calls == []
+    assert answer == tr("chat.nothingToForget", _lang=language)
+
+
+def test_forget_what_the_reader_did_not_name(kb, ollama, monkeypatch):
+    """« انس أنني أعيش في دبي » (oublie que j'habite à Dubaï) : le vrai my_ai n'y
+    désignait rien, il le lisait comme une demande de retenir. Rien n'était retiré, et la
+    réponse disait n'avoir rien retenu. Le fait connu qui a les mêmes mots est retiré,
+    une fois confirmé par le second appel."""
+    kb.add_fact("general", key="أعيش في دبي", value="أعيش في دبي")
+    message = "انس أنني أعيش في دبي"
+    reader = _reading(monkeypatch, {message: (["أعيش في دبي"], [])})
+
+    answer, calls = _ask(_engine(kb), message)
+
+    assert kb.get_all_facts() == []
+    assert calls == [("forget_fact", {"fact": "أعيش في دبي"})]
+    assert answer == tr("chat.memoryForgotten", _lang="ar")
+    assert len(reader.calls) == 1
+
+
+def test_forget_and_replace_in_another_language(kb, ollama, monkeypatch):
+    kb.add_fact("general", key="ich wohne in Berlin", value="ich wohne in Berlin")
+    replace = "Nein, merk dir lieber, dass ich in München wohne"
+    forget = "Vergiss, dass ich in München wohne"
+    _reading(monkeypatch, {replace: (["ich in München wohne"], [1]), forget: ([], [1])})
+    engine = _engine(kb)
+
+    answer, calls = _ask(engine, replace)
+    assert [item["value"] for item in kb.get_all_facts()] == ["ich in München wohne"]
+    assert calls == [("forget_fact", {"fact": "ich wohne in Berlin"}),
+                     ("remember_fact", {"fact": "ich in München wohne"})]
+    assert answer == tr("chat.memoryReplaced", _lang="de")
+
+    answer, calls = _ask(engine, forget)
+    assert kb.get_all_facts() == []
+    assert calls == [("forget_fact", {"fact": "ich in München wohne"})]
+    assert answer == tr("chat.memoryForgotten", _lang="de")
+    assert engine.local_ai.local_llm.streamed_systems == [] and not ollama.requests
+
+    # Déjà connu : il le dit
+    kb.add_fact("general", key="ich wohne in Köln", value="ich wohne in Köln")
+    _reading(monkeypatch, {"Merk dir, dass ich in Köln wohne": (["ich wohne in Köln"], [])})
+    answer, calls = _ask(engine, "Merk dir, dass ich in Köln wohne")
+    assert answer == tr("chat.memoryKnown", _lang="de")
+
+
+@pytest.mark.parametrize(
+    ("before", "read", "key"),
+    [
+        # Rien avant : on ne sait pas quoi retenir
+        ([], [], "chat.memoryUnclear"),
+        # Avant, une question : rien de ce qu'il a dit n'est une information
+        ([{"role": "user", "content": "告诉我杭州的天气"},
+          {"role": "assistant", "content": "Il fait beau à Hangzhou, le ciel s'appelle bleu."}],
+         ["mon frère s'appelle Paul"], "chat.memoryFailed"),
+    ],
+)
+def test_remember_that_without_anything_kept_in_another_language(kb, ollama, monkeypatch,
+                                                                    before, read, key):
+    """« 记住这个 » seul, dont rien n'a pu être retenu : la phrase toute faite, sans outils.
+    Le vrai my_ai cherchait dans sa mémoire, puis répondait en français qu'il ne pouvait pas
+    écrire dans les fichiers."""
+    _reading(monkeypatch, {"记住这个": (read, [])})
+    engine = _engine(kb)
+    engine.local_ai.local_llm.conversation_history = list(before)
+
+    answer, calls = _ask(engine, "记住这个")
+
+    assert kb.get_all_facts() == [] and calls == []
+    assert answer == tr(key, _lang="zh")
+    assert not ollama.requests and engine.local_ai.local_llm.streamed_systems == []
+
+
+@pytest.mark.parametrize(
+    "read",
+    [
+        # L'exemple de la consigne du lecteur, recopié : « s'appelle », dans la réponse en
+        # français de l'assistant, le laissait passer
+        ["mon frère s'appelle Paul"],
+        # Sa phrase, traduite
+        ["ma sœur s'appelle Xiaomei et vit à Hangzhou"],
+    ],
+)
+def test_remember_that_keeps_his_own_words_in_another_language(kb, ollama, monkeypatch, read):
+    """Le vrai my_ai retenait « mon frère s'appelle Paul » de « 记住这个 », juste après
+    « 我妹妹叫小美，她住在杭州。 ». Ce qui est retenu vient de ses messages : sinon, sa dernière
+    information, avec ses mots."""
+    _reading(monkeypatch, {"记住这个": (read, [])})
+    engine = _engine(kb)
+    engine.local_ai.local_llm.conversation_history = [
+        {"role": "user", "content": "我妹妹叫小美，她住在杭州。"},
+        {"role": "assistant", "content": "J'ai noté que ta sœur s'appelle Xiaomei."}]
+
+    answer, calls = _ask(engine, "记住这个")
+
+    assert [item["value"] for item in kb.get_all_facts()] == ["我妹妹叫小美，她住在杭州"]
+    assert calls == [("remember_fact", {"fact": "我妹妹叫小美，她住在杭州"})]
+    assert answer == tr("chat.memorySaved", _lang="zh")
+
+
+def test_remember_that_without_anything_kept_has_no_tools(kb, ollama, monkeypatch):
+    """En français, le modèle le dit, mais sans outils : la demande ne dit rien d'autre."""
+    _reading(monkeypatch, {"Retiens ça": (["la capitale du Pérou est Lima"], [])})
+    engine = _engine(kb)
+    engine.local_ai.local_llm.conversation_history = [
+        {"role": "user", "content": "Bonjour"}, {"role": "assistant", "content": "Salut !"}]
+
+    engine.process_query_stream("Retiens ça", on_token=lambda _token: None)
+
+    assert kb.get_all_facts() == []
+    system = engine.local_ai.local_llm.streamed_systems[0]
+    assert "rien n'a pu être enregistré" in system
+    assert "Son message ne demande rien d'autre" in system
+    assert not ollama.requests
+
+
+def test_forgetting_in_another_language_with_another_request(kb, ollama, monkeypatch):
+    """Rien à oublier, et autre chose à faire : le modèle répond, avec la phrase attendue
+    dans la langue du message."""
+    message = "Olvida que tengo un perro y dame una receta rápida"
+    _reading(monkeypatch, {message: ([], [])})
+    ollama.replies.append("No tenía nada guardado sobre eso. Aquí tienes una receta.")
+    engine = _engine(kb)
+
+    engine.process_query_stream(message, on_token=lambda _token: None)
+
+    systems = ollama.systems() or engine.local_ai.local_llm.streamed_systems
+    assert "dis-lui en une phrase, en espagnol, que tu n'avais rien retenu de tel" in systems[0]
+    assert f"(par exemple : « {tr('chat.nothingToForget', _lang='es')} »)" in systems[0]
     assert "puis réponds au reste de son message" in systems[0]
 
 
@@ -1202,6 +1467,158 @@ def test_a_fact_in_the_second_person_takes_the_user_words(fact, message, kept):
     verbe change de forme (« tu es », « je suis »), il reformule parfois ; pas un autre
     sujet, ni une consigne pour l'IA."""
     assert chat_memory._in_own_words(fact, message) == kept
+
+
+_READER_LLM = {"chat_url": "http://127.0.0.1:9/api/chat", "model": "my_ai", "num_ctx": 2048}
+
+
+def test_a_fact_in_another_language_keeps_the_user_words(kb):
+    """Sans demande, dans les dix autres langues, le vrai modèle écrivait en français ce
+    qu'il dit de lui (« ma sœur s'appelle Masha et elle habite à Kazan ») : ces mots ne
+    venant pas de l'utilisateur, rien n'était retenu (aucune information durable en
+    russe, chinois, arabe ni coréen). Elle est reprise de ses mots : la seule partie de
+    son message, sans second appel, ou celles que le modèle désigne ; jamais sa question."""
+    reader = _Reader({
+        "Я врач.": (["je suis médecin"], []),
+        "我吃素已经十年了。": (["je suis végétarien depuis dix ans"], []),
+        "Мою сестру зовут Маша, она живёт в Казани.": (
+            ["ma sœur s'appelle Masha et elle habite à Kazan"], []),
+        "أعمل ممرضًا في الليل، هل لديك نصائح للنوم أثناء النهار؟": (
+            ["je travaille la nuit comme infirmier"], []),
+        "Меня зовут Олег. Я живу в Казани.": (["je m'appelle Oleg", "j'habite à Kazan"], []),
+        # À la deuxième personne, comme sa question : pas une consigne pour l'IA
+        "Trabajo de noche como enfermero, ¿tienes consejos para dormir de día?": (
+            ["tu travailles la nuit comme infirmier"], []),
+    }, parts={
+        "Мою сестру зовут Маша, она живёт в Казани.": [[1, 2]],
+        "أعمل ممرضًا في الليل، هل لديك نصائح للنوم أثناء النهار؟": [[1]],
+        "Меня зовут Олег. Я живу в Казани.": [[1], [2]],
+        "Trabajo de noche como enfermero, ¿tienes consejos para dormir de día?": [[1]],
+    })
+    memory = ChatMemory(kb, reader=lambda _llm: reader)
+
+    for message in reader.answers:
+        memory.update(message, (), _READER_LLM, False)
+
+    assert sorted(fact["value"] for fact in kb.get_all_facts()) == sorted([
+        "Я врач", "我吃素已经十年了", "Мою сестру зовут Маша, она живёт в Казани",
+        "أعمل ممرضًا في الليل", "Меня зовут Олег", "Я живу в Казани",
+        "Trabajo de noche como enfermero"])
+    assert reader.part_calls == [
+        ("Мою сестру зовут Маша, она живёт в Казани.",
+         ["Мою сестру зовут Маша", "она живёт в Казани"],
+         ["ma sœur s'appelle Masha et elle habite à Kazan"]),
+        ("أعمل ممرضًا في الليل، هل لديك نصائح للنوم أثناء النهار؟", ["أعمل ممرضًا في الليل"],
+         ["je travaille la nuit comme infirmier"]),
+        ("Меня зовут Олег. Я живу в Казани.", ["Меня зовут Олег", "Я живу в Казани"],
+         ["je m'appelle Oleg", "j'habite à Kazan"]),
+        ("Trabajo de noche como enfermero, ¿tienes consejos para dormir de día?",
+         ["Trabajo de noche como enfermero"], ["tu travailles la nuit comme infirmier"]),
+    ]
+
+
+def test_what_asks_is_not_kept_in_another_language(kb):
+    """Ce qu'il cherche, ce qu'il demande de faire ou de dire : rien, comme en français.
+    Le vrai modèle recopiait parfois le message (« schrijf een kort gedicht over de
+    zee », « procuro um romance em espanhol para a minha irmã ») : ses mots le faisaient
+    retenir. Une partie que le modèle ne désigne pas n'est pas retenue non plus."""
+    reader = _Reader({
+        "Schrijf een kort gedicht over de zee.": (["schrijf een kort gedicht over de zee"], []),
+        "Procuro um romance em espanhol para a minha irmã.": (
+            ["procuro um romance em espanhol para a minha irmã"], []),
+        "我在找一本西班牙语小说送给妹妹。": (["j'ai une sœur"], []),
+        "Какая погода будет завтра в Казани?": (["tu dois me dire la météo à Kazan"], []),
+        "Есть советы, как спать, если я работаю по ночам?": (["je travaille la nuit"], []),
+    })
+    memory = ChatMemory(kb, reader=lambda _llm: reader)
+
+    for message in reader.answers:
+        memory.update(message, (), _READER_LLM, False)
+
+    assert kb.get_all_facts() == []
+    assert [message for message, _said, _facts in reader.part_calls] == [
+        "Есть советы, как спать, если я работаю по ночам?"]
+
+
+def test_a_fact_already_in_his_words_stays(kb):
+    """Ce que le modèle a déjà écrit avec ses mots reste tel quel, sans second appel."""
+    reader = _Reader({
+        "Mi hermana se llama Lucía y vive en Sevilla.": (
+            ["mi hermana se llama Lucía y vive en Sevilla"], []),
+        "Ik werk 's nachts als verpleegkundige, heb je tips om overdag goed te slapen?": (
+            ["ik werk 's nachts als verpleegkundige"], []),
+    })
+    memory = ChatMemory(kb, reader=lambda _llm: reader)
+
+    for message in reader.answers:
+        memory.update(message, (), _READER_LLM, False)
+
+    assert sorted(fact["value"] for fact in kb.get_all_facts()) == [
+        "ik werk 's nachts als verpleegkundige", "mi hermana se llama Lucía y vive en Sevilla"]
+    assert reader.part_calls == []
+
+
+def test_a_fact_replaced_in_another_language_keeps_the_user_words(kb):
+    """« El mes pasado me mudé a Valencia » remplace « Vivo en Madrid » : avec ses mots,
+    pas ceux que le modèle en a tirés (« vivo en Valencia »)."""
+    kb.remember("Vivo en Madrid", source="conversation", scope="chat")
+    reader = _Reader({"El mes pasado me mudé a Valencia.": (["vivo en Valencia"], [1])})
+    memory = ChatMemory(kb, reader=lambda _llm: reader)
+
+    update = memory.update("El mes pasado me mudé a Valencia.", (), _READER_LLM, False)
+
+    assert [fact["value"] for fact in kb.get_all_facts()] == ["El mes pasado me mudé a Valencia"]
+    assert [item.fact for item in update.forgotten] == ["Vivo en Madrid"]
+
+
+def test_two_words_are_read_in_the_other_languages(kb):
+    """« Я врач », « أنا طبيب », « Soy médico » : deux mots, sans verbe « être » ou sans
+    « je », là où « je suis médecin » en a trois. Lus dans les dix autres langues ; en
+    français et en anglais, il en faut toujours trois (« ok merci », « thank you »)."""
+    reader = _Reader({})
+    memory = ChatMemory(kb, reader=lambda _llm: reader)
+
+    for message in ("Я врач.", "أنا طبيب.", "Soy médico.", "ok merci", "thank you"):
+        memory.update(message, (), _READER_LLM, False)
+
+    assert [call["message"] for call in reader.calls] == ["Я врач.", "أنا طبيب.", "Soy médico."]
+
+
+class _PartsAnswer:
+    """Réponse d'Ollama à la question des parties du message (ChatMemoryReader.parts)."""
+
+    @staticmethod
+    def raise_for_status():
+        return None
+
+    @staticmethod
+    def json():
+        return {"message": {"content": '{"1": [1, 2], "2": ["x", 3]}'}}
+
+
+def test_the_chat_reader_names_the_parts_of_the_message():
+    """Le modèle ne fait que désigner des parties du message : les mots retenus sont les
+    siens (_in_his_words)."""
+    posted = []
+
+    def post(_url, json, timeout):  # pylint: disable=redefined-outer-name
+        del timeout
+        posted.append(json)
+        return _PartsAnswer()
+
+    reader = ChatMemoryReader("http://127.0.0.1:9/api/chat", "my_ai", 32768, post=post)
+    chosen = reader.parts("Меня зовут Олег. Я живу в Казани.",
+                          ["Меня зовут Олег", "Я живу в Казани"],
+                          ["je m'appelle Oleg", "j'habite à Kazan"])
+
+    assert chosen == [[1, 2], [3]]
+    messages = posted[0]["messages"]
+    assert [message["role"] for message in messages] == ["system", "user"]
+    assert messages[1]["content"].splitlines() == [
+        "Son message :", "Меня зовут Олег. Я живу в Казани.", "", "Ses parties :",
+        "1. Меня зовут Олег", "2. Я живу в Казани", "", "Informations tirées de son message :",
+        "1. je m'appelle Oleg", "2. j'habite à Kazan"]
+    assert posted[0]["format"]["required"] == ["1", "2"]
 
 
 def test_a_code_is_kept_only_on_request(kb):

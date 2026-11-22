@@ -11,10 +11,13 @@ import os
 import re
 import sqlite3
 import threading
+import unicodedata
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Tuple
 
+from core import memory_languages
+from core.memory_languages import word_count
 from utils.logger import setup_logger
 from utils.text_fold import fold
 
@@ -666,7 +669,7 @@ def _clean_remembered(text: str, block: bool) -> Optional[str]:
     # citation finale (« … par « Bonne journée ! » ») restent
     if len(fact) > 1 and fact[0] in "\"'«“`" and fact[-1] in "\"'»”`":
         fact = fact[1:-1].strip().rstrip(" ?!.;,:").strip()
-    if len(fact) > MAX_REMEMBERED_CHARS or len(fact.split()) < 2:
+    if len(fact) > MAX_REMEMBERED_CHARS or word_count(fact) < 2:
         return None
     if _REFERENCE_RE.match(fact):
         return None
@@ -682,9 +685,14 @@ def extract_remember_request(message: str) -> Optional[str]:
     La demande doit ouvrir sa phrase (voir _REMEMBER_LEAD_IN_RE), et une
     question qui suit l'information en est retirée : « Retiens que mon chat
     s'appelle Félix. Quel temps fait-il ? » → « mon chat s'appelle Félix ».
+    Les dix autres langues de My_AI : core/memory_languages.py (« Recuerda que
+    vivo en Madrid » → « vivo en Madrid »).
     """
     if not message:
         return None
+    if not _REMEMBER_RE.search(message) and not _REMEMBER_DIRECT_RE.search(message):
+        fact = memory_languages.extract_remember_request(message)
+        return fact if fact and is_rememberable(fact) else None
     for pattern in (_REMEMBER_RE, _REMEMBER_DIRECT_RE):
         position = 0
         while True:
@@ -717,6 +725,9 @@ def remember_block(message: str) -> Optional[str]:
     """
     if not message:
         return None
+    if not _REMEMBER_RE.search(message):
+        block = memory_languages.remember_block(message)
+        return block if block and is_rememberable(block) else None
     position = 0
     while True:
         match = _REMEMBER_RE.search(message, position)
@@ -740,6 +751,8 @@ def is_only_remember_request(message: str, fact: str) -> bool:
     retenir que… ? » ; faux s'il reste une question ou une autre demande
     (« … Quel temps fait-il ? »). Une telle demande se confirme sans outils.
     """
+    if not _REMEMBER_ASK_RE.search(message or ""):
+        return memory_languages.is_only_remember_request(message, fact)
     if not fact or fact not in message:
         return False
     before, after = message.split(fact, 1)
@@ -786,7 +799,7 @@ def is_rememberable(text: str) -> bool:
     chose (« ce que je t'ai dit »).
     """
     text = (text or "").strip()
-    return (len(text.split()) >= 2 and len(text) <= MAX_REMEMBERED_CHARS
+    return (word_count(text) >= 2 and len(text) <= MAX_REMEMBERED_CHARS
             and not _REFERENCE_RE.match(text))
 
 
@@ -800,11 +813,14 @@ def asks_to_remember(message: str) -> bool:
     projets » renvoie à ce qui précède, et c'est au modèle de lire quoi
     retenir (core/code_memory.py). Sauf une question : le modèle y répondait,
     et sa réponse était retenue (« Je n'ai pas d'information sur… »).
+
+    Les dix autres langues de My_AI : core/memory_languages.py (« Recuerda
+    que… », « Merk dir, dass… », « 记住… », « …と覚えておいて »).
     """
     for match in _REMEMBER_ASK_RE.finditer(message or ""):
         if _opens_sentence(message, match.start()) and not _recalls(message, match):
             return True
-    return False
+    return memory_languages.asks_to_remember(message)
 
 
 # Demande d'oubli : « oublie que… », « oublie-le », « ne retiens plus… », « retire de
@@ -831,11 +847,12 @@ def asks_to_forget(message: str) -> bool:
     unittest », « oublie tout ce que tu as retenu pour ce projet ») ? Le verbe
     ouvre sa phrase, comme pour asks_to_remember ; « supprime » ou « retire »
     seulement s'ils parlent de la mémoire (« supprime la fonction » est du code).
+    Les dix autres langues : core/memory_languages.py (« Olvida que… »).
     """
     for match in _FORGET_ASK_RE.finditer(message or ""):
         if _opens_sentence(message, match.start()):
             return True
-    return False
+    return memory_languages.asks_to_forget(message)
 
 
 # Les propositions d'une demande d'oubli (« oublie que je suis végétarien, et
@@ -863,14 +880,58 @@ def only_asks_to_forget(message: str) -> bool:
             return False
         clauses = _CLAUSE_SPLIT_RE.split(sentences[0]) if sentences else []
         return not any(_REQUEST_START_RE.match(clause) for clause in clauses if clause)
-    return False
+    return memory_languages.only_asks_to_forget(message)
+
+
+# Mots des autres écritures : le cyrillique et l'arabe en mots ; le chinois, le
+# japonais et le coréen en paires de caractères voisins, faute d'espaces entre
+# leurs mots (« 我住在北京 » : 我住, 住在, 在北, 北京). Seules les lettres latines
+# comptaient : « я живу в Москве » ou « 我住在北京 » n'avaient aucun mot, et rien de
+# ce qu'ils disaient ne pouvait être retenu (le fait ne venait « pas de
+# l'utilisateur », code_memory._grounded)
+_TOKEN_RE = re.compile(
+    r"[a-z0-9_]+|[\u0400-\u04ff]+|[\u0621-\u063f\u0641-\u064a\u066e-\u06d3\u06fa-\u06ff]+"
+    r"|(?P<joined>[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uac00-\ud7a3]+)"
+)
+# Petits mots du russe et de l'arabe, comme _QUERY_STOPWORDS
+_OTHER_SCRIPT_STOPWORDS = {
+    "что", "это", "как", "для", "мне", "меня", "мой", "моя", "мои", "моё", "все", "всё",
+    "так", "его", "она", "они", "оно", "был", "была", "были", "быть", "есть", "или",
+    "тоже", "уже", "ещё", "там", "тут", "вот", "при", "под", "над", "без", "про", "чем",
+    "кто", "где", "когда", "этот", "эта", "эти", "тот", "твой", "твоя", "наш", "ваш",
+    "على", "إلى", "هذا", "هذه", "ذلك", "التي", "الذي", "أنا", "أنت", "نحن", "كان", "كانت",
+    "عند", "أنني", "أني", "لكن", "حتى", "بعد", "قبل",
+}
+_NORMALIZED_STOPWORDS |= {_normalize(word) for word in _OTHER_SCRIPT_STOPWORDS}
+
+
+def forget_object(message: str) -> Optional[str]:
+    """
+    Ce que la demande d'oubli désigne, sa première proposition (« Oublie que j'ai un
+    chien et propose-moi une recette » → « j'ai un chien ») ; dans les dix autres
+    langues : memory_languages.forget_object. None sans demande d'oubli.
+    """
+    for match in _FORGET_ASK_RE.finditer(message or ""):
+        if not _opens_sentence(message, match.start()):
+            continue
+        rest = re.split(r"[.!?\n]", message[match.end():])[0]
+        rest = re.sub(r"^[\s-]*(?:que\s+|qu['’]\s*|that\s+)?", "", rest, flags=re.IGNORECASE)
+        clause = _CLAUSE_SPLIT_RE.split(rest)[0].strip()
+        return clause or None
+    return memory_languages.forget_object(message or "")
 
 
 def content_words(text: str) -> List[str]:
     """Mots significatifs d'un texte, sans casse, accents, pluriel ni petits mots
-    (« quel », « pour »…) : ceux qui comptent pour comparer deux phrases."""
+    (« quel », « pour »…) : ceux qui comptent pour comparer deux phrases. En
+    chinois, japonais et coréen : des paires de caractères (_TOKEN_RE)."""
     tokens = []
-    for token in re.findall(r"[a-z0-9_]+", _normalize(text)):
+    # NFC : le repli décompose le coréen en jamos, recomposés en syllabes
+    for match in _TOKEN_RE.finditer(unicodedata.normalize("NFC", _normalize(text))):
+        token = match.group(0)
+        if match.group("joined"):
+            tokens.extend(token[index:index + 2] for index in range(len(token) - 1))
+            continue
         if len(token) < 3 or token in _NORMALIZED_STOPWORDS:
             continue
         if len(token) > 3 and token[-1] in "sx":
@@ -893,7 +954,7 @@ def only_asks_to_remember(message: str) -> bool:
         rest = message[match.end():]
         rest = rest[_REMEMBER_REFERENCE_RE.match(rest).end():]
         return not re.search(r"\w", _POLITENESS_WORD_RE.sub(" ", rest))
-    return False
+    return memory_languages.only_asks_to_remember(message)
 
 
 # Patrons d'extraction automatique de faits depuis du texte libre
