@@ -11,12 +11,12 @@ import os
 import re
 import sqlite3
 import threading
-import unicodedata
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Tuple
 
 from utils.logger import setup_logger
+from utils.text_fold import fold
 
 logger = setup_logger("knowledge_base_manager")
 
@@ -521,9 +521,9 @@ def fact_for_prompt(text: str) -> str:
 
 
 def _normalize(text: str) -> str:
-    """Minuscules sans accents : « Félix » et « felix » se retrouvent."""
-    decomposed = unicodedata.normalize("NFKD", text or "")
-    return "".join(c for c in decomposed if not unicodedata.combining(c)).casefold()
+    """Minuscules sans accents ni ligatures : « Félix » et « felix », « sœur » et
+    « soeur » se retrouvent (utils/text_fold.py)."""
+    return fold(text)
 
 
 _NORMALIZED_STOPWORDS = {_normalize(word) for word in _QUERY_STOPWORDS}

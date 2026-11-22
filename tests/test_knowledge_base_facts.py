@@ -17,6 +17,7 @@ import pytest
 from core.knowledge_base_manager import (
     MAX_REMEMBERED_CHARS,
     KnowledgeBaseManager,
+    content_words,
     extract_remember_request,
     fact_for_prompt,
     is_assistant_fact,
@@ -95,6 +96,26 @@ def test_matching_ignores_case_accents_and_plural(kb):
     facts = kb.select_facts("le chat felix", max_facts=1)
 
     assert _values(facts) == ["Mes CHATS s'appellent Félix et Tom"]
+
+
+def test_matching_ignores_the_oe_ligature(kb):
+    """« sœur » était coupé en « s » et « ur », trop courts pour compter : ni « sœur »
+    ni « soeur » (tapé sans la ligature) ne retrouvaient le fait."""
+    _add(kb, "general", "Ma sœur s'appelle Léa", day=1)
+    for day in range(2, 20):
+        _add(kb, "general", f"Note numéro {day}", day=day)
+
+    assert content_words("j'ai une sœur") == ["soeur"]
+    for query in ("ma sœur", "ma soeur", "SŒUR"):
+        assert _values(kb.select_facts(query, max_facts=1)) == ["Ma sœur s'appelle Léa"]
+
+
+def test_the_oe_ligature_does_not_make_a_duplicate(kb):
+    first, created = kb.remember("ma sœur s'appelle Léa")
+    again, created_again = kb.remember("ma soeur s'appelle Léa")
+
+    assert created and not created_again and again == first
+    assert len(kb.get_all_facts()) == 1
 
 
 def test_selection_respects_the_character_budget(kb):

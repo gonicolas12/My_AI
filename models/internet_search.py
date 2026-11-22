@@ -27,7 +27,6 @@ import re
 import ssl
 import threading
 import time
-import unicodedata
 from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
@@ -40,6 +39,7 @@ from bs4 import BeautifulSoup, FeatureNotFound
 from requests.adapters import HTTPAdapter
 
 from utils.citations import DEFAULT_HEADER, SOURCES_NOTE
+from utils.text_fold import fold
 
 try:  # magasin de certificats du système (certificat racine d'un proxy d'entreprise)
     import truststore
@@ -380,9 +380,8 @@ def _text(element) -> str:
 
 
 def _fold(text: str) -> str:
-    """Minuscules sans accents, pour comparer des mots."""
-    decomposed = unicodedata.normalize("NFKD", text or "")
-    return "".join(c for c in decomposed if not unicodedata.combining(c)).lower()
+    """Minuscules sans accents ni ligatures, pour comparer des mots (utils/text_fold.py)."""
+    return fold(text)
 
 
 def _words(text: str) -> List[str]:

@@ -117,6 +117,11 @@ class TestMatchingAndPlaceholders:
         assert lib.find_by_command("/résume") is not None      # avec slash + accent
         assert lib.find_by_command("RESUME") is not None       # casse différente
 
+    def test_find_by_command_with_the_oe_ligature(self, lib):
+        lib.add(title="Œuvre", content="Présente l'œuvre.", command="œuvre")
+        assert lib.find_by_command("oeuvre") is not None     # sans la ligature
+        assert lib.find_by_command("/ŒUVRE") is not None
+
     def test_search_prefix(self, lib):
         results = lib.search("re")  # « résume », « reformule »
         cmds = {t["command"] for t in results}
