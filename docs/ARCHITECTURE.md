@@ -560,7 +560,7 @@ Rôle:
 ├─ select_passages(text, query, limit, similarity) : appelé par AIEngine quand
 │  un document chargé dépasse sa part du prompt
 ├─ Passages d'≈ 1 000 caractères coupés sur les fins de ligne
-├─ Score des mots : BM25 sans accents, racine des mots (5 lettres), mots vides
+├─ Score des mots : BM25 sans accents ni ligatures, racine des mots (5 lettres), mots vides
 │  FR/EN, bonus pour deux mots de la question qui se suivent (« section 15 »),
 │  « rubrique » / « chapitre » = « section » (FDS françaises)
 ├─ Score de sens (core/passage_embeddings.py) : relie une question et un
@@ -1658,6 +1658,12 @@ utils/python_version.py:
 │  (chromadb, faster-whisper) n'a pas encore de wheel
 └─ Hors de l'intervalle : message launch.pythonUnsupported / pythonInstall
    (12 langues), puis arrêt ; launch.bat et launch.sh font le même contrôle
+
+utils/text_fold.py:
+└─ fold(text) : minuscules sans accents ni ligatures (« Sœur » → « soeur »),
+   pour comparer des mots : faits de la mémoire (content_words), passages
+   des documents, résultats web, commandes de la bibliothèque de prompts.
+   NFKD laisse « œ » et « æ » entiers, et [a-z0-9] coupait « sœur » en deux
 
 utils/path_links.py:
 ├─ find_existing_paths(text) : plus long préfixe qui existe sur le disque

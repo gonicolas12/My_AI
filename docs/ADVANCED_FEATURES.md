@@ -787,7 +787,7 @@ kb.code_facts(["C:/dev/api"])  # ceux de la conversation Code dans ce dossier
 results = kb.search_facts("Python", category="preference")
 
 # Faits pour le prompt IA : mots communs avec la requête (casse, accents,
-# pluriels ignorés), puis les plus récents, parmi ceux du chat par défaut
+# ligatures, pluriels ignorés), puis les plus récents, parmi ceux du chat par défaut
 facts = kb.select_facts("Comment s'appelle mon chat ?")
 context = kb.get_context_for_prompt("Quel éditeur pour le Python ?")  # pertinents seulement
 # → "[Base de connaissances]\n- [preference] VS Code pour le Python (confiance: 70%)"
