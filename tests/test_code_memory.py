@@ -497,6 +497,26 @@ def test_remember_it_for_all_my_projects_extends_the_fact_said_just_before(kb):
     assert call["known"] == [("projet api", "je fais mes test avec pytest")]
 
 
+def test_remember_and_forget_in_another_language(kb):
+    """La conversation Code reconnaît aussi les dix autres langues (core/memory_languages.py) :
+    « para todos mis proyectos » vaut pour tous les projets, « Olvida que… » retire le
+    fait, et ce qui n'est pas retenu se signale."""
+    reader = FakeReader((["uso tabuladores"], []), ([], [1]), ([], []))
+    memory = _memory_with(kb, reader)
+
+    saved = memory.update("Recuerda para todos mis proyectos que uso tabuladores", [API], (), LLM)
+    assert [(f["value"], f["scope"]) for f in kb.get_all_facts()] == [("uso tabuladores", SCOPE_CODE)]
+    assert saved.asked and saved.alone
+
+    gone = memory.update("Olvida que uso tabuladores", [API], (), LLM)
+    assert kb.get_all_facts() == [] and [item.fact for item in gone.forgotten] == ["uso tabuladores"]
+    assert gone.alone
+
+    missing = memory.update("Olvida que uso pytest", [API], (), LLM)
+    assert missing.missing and missing.alone and not missing.changed
+    assert [call["asked"] for call in reader.calls] == [True, True, True]
+
+
 def test_a_remember_it_with_nothing_to_remember_is_not_confirmed(kb):
     reader = FakeReader(([], []), ([], []))
     memory = _memory_with(kb, reader)
@@ -537,6 +557,8 @@ def test_a_remember_it_takes_back_nothing_nobody_spoke_of(kb):
     # Toujours la liste, même relue : rien de retenu, et la note le dit
     nothing = memory.update("Retiens-le", [API], before, LLM)
     assert nothing.failed and not nothing.changed
+    # Rien d'autre n'est demandé : le dire, sans outils
+    assert nothing.alone
     assert sorted(_values(kb.get_all_facts())) == [
         "j'utilise unittest", "j'écris mes commits en anglais", "le port de l'api est 8000"]
 

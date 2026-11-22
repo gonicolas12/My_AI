@@ -288,6 +288,7 @@ def _reminded(default, detected, text="ok"):
         _LANG_SUFFIXES=AIEngine._LANG_SUFFIXES,  # pylint: disable=protected-access
     )
     engine._default_language = lambda: AIEngine._default_language(engine)  # pylint: disable=protected-access
+    engine._request_language = lambda said: AIEngine._request_language(engine, said)  # pylint: disable=protected-access
     return AIEngine._reminded_language(engine, text)  # pylint: disable=protected-access
 
 
@@ -299,6 +300,10 @@ def test_engine_reminds_the_default_language_at_the_end_of_the_message():
     # … sauf pour un message clairement dans une autre langue, qui garde la sienne
     assert _reminded("ja", "de") is None
     assert _reminded("fr", "en") == "en"
+    # Une demande de mémoire dans une autre langue : la sienne, lue sur son verbe (le
+    # bloc MÉMORISATION, en français, faisait répondre en français)
+    assert _reminded("fr", "es", "Recuerda que vivo en Madrid") == "es"
+    assert _reminded("fr", "es", "¿Qué tiempo hace en Madrid?") is None
 
 
 # ── Page mobile du Relay ─────────────────────────────────────────────────────

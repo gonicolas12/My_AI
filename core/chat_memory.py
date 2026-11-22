@@ -34,6 +34,7 @@ from core.knowledge_base_manager import (
     is_assistant_fact,
     project_name,
 )
+from core.memory_languages import word_count
 
 logger = logging.getLogger(__name__)
 
@@ -62,7 +63,12 @@ _LASTING_RE = re.compile(
 _SECRET_RE = re.compile(
     r"(?<![\w'’])(?:mots?\s+de\s+passe|digicodes?|passwords?|passcodes?|pin"
     r"|(?:le|la|les|mon|ma|mes|ton|ta|tes|son|sa|ses|un|ce|cet|l['’])\s*codes?"
-    r"(?!\s+postal))(?![\w'’])",
+    r"(?!\s+postal)"
+    # Les mots de passe des dix autres langues (core/memory_languages.py)
+    r"|contrase[ñn]as?|passw[öo]rter|passwort|kennw[öo]rter|kennwort|senhas?"
+    r"|wachtwoord(?:en)?|парол(?:ь|и|я|ем)|كلمة\s+(?:المرور|السر)|كلمات\s+المرور"
+    r")(?![\w'’])"
+    r"|密码|密碼|口令|パスワード|暗証番号|비밀번호|패스워드",
     re.IGNORECASE,
 )
 # Ce qu'il dit de lui, le modèle l'écrivait parfois à la deuxième personne, en
@@ -377,7 +383,7 @@ class ChatMemory:
             return None
         if asked is None:
             asked = self.asks(message)
-        if not asked and (len(message.split()) < _MIN_SPONTANEOUS_WORDS
+        if not asked and (word_count(message) < _MIN_SPONTANEOUS_WORDS
                           or len(message) > _MAX_SPONTANEOUS_CHARS):
             return None
         reader = self._reader(llm) if self._reader is not None and llm else None
