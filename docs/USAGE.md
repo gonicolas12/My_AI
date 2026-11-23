@@ -1443,7 +1443,7 @@ Un document **généré** depuis le mobile (« *génère un pdf sur…* ») arri
 
 Détails techniques :
 
-- L'upload est **streamé** vers un répertoire temporaire (`{tempdir}/my_ai_relay_uploads/`) avec validation d'extension et plafond de **25 Mo** par fichier — l'upload chiffré (`POST /api/upload`) est partagé par le Chat et la page Agents
+- L'upload est **streamé** vers un répertoire temporaire (`{tempdir}/my_ai_relay_uploads/`) avec validation d'extension et plafond de **25 Mo** par fichier — l'upload chiffré (`POST /api/upload`) est partagé par le Chat et la page Agents. Un envoi plus gros est refusé avant d'être lu (« Fichier trop volumineux (> 25 Mo) »), comme un envoi de plusieurs fichiers ou accompagné d'autres champs ; les autres requêtes du Relay sont bornées à 64 Kio (limites `max_body_size` et `form_limits` de FastAPI 0.165)
 - **Sur l'onglet Agents**, le contenu des documents (et la description vision des images) est injecté en fin de tâche sous forme de sections `--- Fichier joint : … ---` avant le lancement du workflow (même logique que la page Agents du PC, `processors/attachments.py`)
 - Un fichier envoyé sans message (Chat) déclenche une requête par défaut (`"Décris cette image en détail."` ou `"Analyse ce fichier et résume-le."`)
 - Image + documents peuvent être combinés dans un même message ; le premier fichier image est envoyé au modèle vision, les autres rejoignent le contexte
@@ -1476,6 +1476,8 @@ Les providers comparés (mesures du 2026-10-19, depuis un PC en France) :
 | `serveo` (en option) | Hetzner (Helsinki) | ~1 s | ~120 ms | Le nom du tunnel **contient l'adresse IP publique de votre réseau** (`…-203-0-113-7.serveousercontent.com`), visible de qui a le QR code et du réseau du téléphone (DNS, début de la connexion HTTPS). Sa page d'avertissement est sautée par la page de routage |
 
 Pour la fluidité du chat, la différence ne se voit pas : la réponse arrive en flux continu et le tunnel ne fait que décaler son début (le rythme dépend du modèle). Le provider le plus rapide rend surtout plus vives les actions (chargement, envoi d'un message).
+
+> **Réseau qui bloque l'UDP sortant** (réseau d'entreprise, certains Wi-Fi publics) : cloudflared se connecte d'abord en QUIC (UDP, port 7844), puis passe en HTTP/2 (TCP, même port) quand QUIC n'aboutit pas. Le tunnel s'établit alors environ deux minutes après le démarrage du Relay (130 s mesurées avec cloudflared 2026.3.0), et le QR code le reprend dès qu'il répond. My_AI le lance avec `--protocol auto` : jusqu'à sa version 2026.11.0, cloudflared imposait QUIC aux tunnels rapides sans protocole demandé, sans repli, et le tunnel ne s'établissait jamais sur ces réseaux.
 
 #### Page de routage GitHub Pages (forkers du projet)
 

@@ -12,7 +12,9 @@ None. start() prépare ce lancement :
   - les commandes console (taskkill, pip, ollama, ssh…) tournent sans fenêtre :
     sans console à partager, chacune ouvrirait la sienne ;
   - une erreur qui arrête le lancement s'affiche dans une boîte de dialogue
-    (show_error), avec le nom de ce fichier.
+    (show_error), avec le nom de ce fichier ;
+  - un avertissement qui ne l'arrête pas passe par une notification du système
+    (show_notice), sans rien bloquer.
 
 Avec une console, rien ne change. Ce module tourne avant la vérification de
 la version de Python : bibliothèque standard seulement, et une syntaxe que
@@ -24,6 +26,7 @@ import functools
 import os
 import subprocess
 import sys
+import threading
 import time
 from pathlib import Path
 from typing import Any, Optional
@@ -221,6 +224,32 @@ def show_error(message: str, *, warning: bool = False) -> bool:
         details = _tr("launch.logFile", "Details: {path}", path=Path(log).resolve())
         message = f"{message}\n\n{details}"
     return _message_box(message, _MB_ICONWARNING if warning else _MB_ICONERROR)
+
+
+def show_notice(title: str, message: str) -> bool:
+    """Sans console, montre un avertissement du lancement sans rien bloquer.
+
+    Notification du système (utils/desktop_notify.py), envoyée d'un fil à part
+    : le lancement n'attend ni ne dépend d'elle. Avec une console, ne fait
+    rien : le message y est déjà écrit. Sans moyen de notifier (winotify pas
+    encore installé…), le message reste dans le fichier des sorties.
+
+    Returns:
+        True si la notification est partie (son affichage n'est pas vérifié)
+    """
+    if not _STATE["active"]:
+        return False
+
+    def notify() -> None:
+        try:
+            from utils.desktop_notify import notify_desktop  # pylint: disable=import-outside-toplevel
+
+            notify_desktop(title, message)
+        except Exception:  # pylint: disable=broad-except
+            pass
+
+    threading.Thread(target=notify, name="launch-notice", daemon=True).start()
+    return True
 
 
 def wait_for_dismiss(message: str) -> bool:

@@ -115,7 +115,7 @@ Pour économiser cette mémoire, définissez vous-même `OLLAMA_NUM_PARALLEL=1` 
 
 ### Quels sont les prérequis pour installer l'IA ?
  
-- Python 3.11 à 3.14 (3.12 au plus sur un Mac Intel)
+- Python 3.11 à 3.14 (3.12 au plus sur un Mac Intel), 3.14.10 ou plus récent conseillé
 - 4 GB RAM minimum (8 GB recommandé)
 - ~100 MB d'espace disque
 - Windows, macOS ou Linux
@@ -155,6 +155,17 @@ Les lanceurs (`launch.bat`, `launch.sh`, `launch_unified.py`, `main.py`)
 s'arrêtent alors avec un message qui dit quelle version installer. Avec un
 dossier `venv/`, recréez-le avec le bon Python (`python -m venv venv`), puis
 réinstallez les dépendances.
+
+### Pourquoi My_AI dit-il que mon Python n'a pas le correctif de sécurité ?
+Python 3.14.10, 3.13.18, 3.12.16 et 3.11.18 (25 octobre 2026) refusent les
+clés de l'autorité de certification eMudhra compromises le 20 octobre 2026.
+Avec une version antérieure de sa branche, les connexions HTTPS de My_AI, dont
+les installations automatiques de pip au lancement, sont moins protégées
+contre une interception. My_AI démarre quand même et l'indique une fois par
+lancement (console, ou notification sans console). Installez Python 3.14.10 ou
+plus récent depuis python.org (Windows, Mac Apple Silicon), ou le Python
+corrigé de votre distribution ou de votre gestionnaire de paquets (Linux, Mac
+Intel). Détails dans [INSTALLATION.md](INSTALLATION.md).
 
 ## 💬 Utilisation et Fonctionnalités
 

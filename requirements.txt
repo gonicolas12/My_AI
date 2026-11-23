@@ -41,12 +41,17 @@ beautifulsoup4>=4.12.0
 # Les quatre avis du 13/11/2026 sont corrigés en 4.0, le dernier étant
 # GHSA-mmhr-3c5m-f64f (CVE-2026-126190 : temps polynomial dans le combinateur
 # descendant, sur du HTML fourni par l'attaquant) ; les trois autres supposent
-# un sélecteur fourni par l'attaquant ou :has(). Les versions 3.0.2 et suivantes
-# exigent Python 3.11.5 : sous 3.11.0 à 3.11.4, la ligne est ignorée et la 2.10
-# reste installée, mais aucun des quatre avis n'y est atteignable : My_AI
-# n'applique plus aucun combinateur descendant au HTML reçu, et ses sélecteurs
-# sont constants, sans :has() (models/internet_search.py).
-soupsieve>=4.0; python_full_version >= "3.11.5"
+# un sélecteur fourni par l'attaquant ou :has(). 4.1.3 corrige aussi les avis
+# publiés depuis, jusqu'à ceux des 18 et 20/11/2026 (dont GHSA-gcq2-p324-qj2v :
+# :lang() en temps quadratique ; puis la famille *-of-type, filter() sur une
+# liste, l'option ignore) : aucun n'est atteignable par My_AI, dont les
+# sélecteurs sont constants, sans :lang(), *-of-type, :nth-last-child(… of S),
+# *= ni $=, et qui n'appelle ni filter() ni ignore (models/internet_search.py).
+# Borne d'hygiène, pour les analyseurs de dépendances. Les versions 3.0.2 et
+# suivantes exigent Python 3.11.5 : sous 3.11.0 à 3.11.4, la ligne est ignorée
+# et la 2.10 reste installée, mais aucun de ces avis n'y est atteignable : My_AI
+# n'applique plus aucun combinateur descendant au HTML reçu, ni :has().
+soupsieve>=4.1.3; python_full_version >= "3.11.5"
 lxml>=4.9.0
 # Certificats du magasin système (racine d'un proxy d'entreprise) pour la recherche internet
 truststore>=0.9
@@ -236,7 +241,22 @@ mcp>=1.30.0,<2
 # ====================================
 # API REST & RELAY
 # ====================================
-fastapi>=0.100.0
+# 0.163.2 corrige GHSA-f56c-v883-vx8r (17/11/2026, déni de service sans
+# authentification : de 0.123.2 à 0.163.1, l'extraction des paramètres de
+# requête, d'en-tête et de formulaire prenait un temps quadratique et bloquait
+# la boucle d'événements ; atteignable par le tunnel public du Relay, avant
+# toute vérification du jeton). 0.165.0 ajoute les limites de taille du corps
+# (max_body_size) et des formulaires (form_limits), posées sur les envois du
+# Relay. Starlette 1.6 ou plus, Python 3.11 ou plus.
+fastapi>=0.165.0
+# FastAPI 0.163.2 et suivants exigent opentelemetry-api 1.44 ou plus, mais le
+# SDK OpenTelemetry que tire chromadb fige l'API à sa propre version : sur une
+# installation existante (SDK 1.39.1), la mise à niveau au lancement ne
+# relevait que l'API, et chromadb (la mémoire) ne s'importait plus
+# (ImportError sur _ExtendedAttributes). Relevés ici, ils partent dans le même
+# appel de pip que FastAPI (utils/requirements_sync.py).
+opentelemetry-sdk>=1.44.0
+opentelemetry-exporter-otlp-proto-grpc>=1.44.0
 uvicorn>=0.23.0
 # 17.4 : recv() refuse les messages découpés en plus de 4096 fragments (déni de
 # service par épuisement de la mémoire). Le Relay ne passe pas par recv() :

@@ -50,7 +50,7 @@ In 12 languages. Your conversations, files and memory stay on your machine.
 
 ## 🚀 Quick start
 
-**Requirements:** Python 3.11 to 3.14 and [Ollama](https://ollama.com/download).
+**Requirements:** Python 3.11 to 3.14 (3.14.10 or later recommended) and [Ollama](https://ollama.com/download).
 
 ```bash
 git clone https://github.com/gonicolas12/My_AI
@@ -68,6 +68,8 @@ Then launch the app and choose **option 1 (graphical interface)**:
 On the **very first launch**, My_AI opens in your system language (one of the 12, English otherwise, and you can change it in the wizard), detects your hardware (RAM, CPU cores, GPU VRAM), **recommends and downloads** the right model, then creates `my_ai` for you. The window opens at once on a loading screen that names each step (Ollama, model, placement, engine), then switches to the chat.
 
 > ⚠️ **Python 3.15 is not supported yet**: onnxruntime, which chromadb (memory) and faster-whisper (dictation) need, has no build for it, so `pip install -r requirements.txt` fails. Python 3.10 reached its end of life on October 1, 2026, and the releases that fix security issues in Pillow, websockets and PyMuPDF no longer install on it. Outside 3.11–3.14, the launchers stop with a message that names the version to install.
+
+> 🔒 **Python 3.14.10 or later is recommended**: the security releases of October 25, 2026 (3.14.10, 3.13.18, 3.12.16, 3.11.18) block the compromised eMudhra certificate keys, pip included. An older release still starts, with a warning at launch. See [docs/INSTALLATION.md](docs/INSTALLATION.md).
 
 > ⚠️ **Intel Mac (x86_64): Python 3.12 maximum.** PyTorch no longer publishes x86_64 builds after version 2.2.2, whose wheels stop at Python 3.12. On Python 3.13+, the installation fails. `launch.sh` checks this at startup. Apple Silicon, Windows and Linux are not affected.
 

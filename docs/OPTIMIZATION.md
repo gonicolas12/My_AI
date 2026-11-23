@@ -95,6 +95,21 @@ Mesures sur un Core Ultra 7 255H (GPU intégré Arc 140T, 32 Go), `my_ai` (qwen3
 
 **Changer la valeur** : définissez `OLLAMA_NUM_PARALLEL` dans vos variables d'environnement (`1` économise 3 Gio avec `my_ai`). Le lanceur la respecte et la passe au serveur qu'il démarre, sans l'écrire pour tout le système : les autres applis qui utilisent Ollama gardent son réglage par défaut (une requête à la fois). La console l'indique à chaque lancement : `✅ Ollama prêt (parallélisme: 4 requêtes simultanées, …)`.
 
+### Ollama 0.40.17 : prompt d'outils
+
+Depuis la 0.40.17, Ollama garde dans le prompt les mots-clés des schémas d'outils qu'il ne modélisait pas ; jusqu'à la 0.40.16, il n'en gardait que `anyOf`, `type`, `items`, `description`, `enum`, `properties` et `required`. Pour `my_ai`, ce sont les 11 valeurs `default` de ses 14 outils : 54 tokens de plus au premier tour (4 854 au lieu de 4 800 pour « Quel temps fera-t-il à Lyon demain ? »).
+
+Mesuré le 23/11/2026 sur un i7-12700H avec RTX 3060 Laptop (6 Go), `my_ai` (qwen3.5:4b) et Ollama 0.40.17 : 10 vrais premiers tours du chat (recherche web, liste d'un dossier, document Word, recherche dans la mémoire, génération de code, en français et en anglais ; réflexion activée, température 0,7), rejoués 10 fois chacun avec les schémas tels que la 0.40.17 les écrit, puis réduits à ce que gardait la 0.40.16 (même serveur, en alternance) :
+
+| Schémas | Outil attendu au premier tour | Tours vides ou sans outil | Valeur par défaut recopiée |
+|---|---|---|---|
+| 0.40.17 (avec `default`) | 75 / 100 | 0 | 1 (`"pattern": "*"`, sans effet) |
+| 0.40.16 (sans) | 72 / 100 | 0 | 0 |
+
+Les 25 et 28 autres premiers tours sont surtout des recherches web : avant un document sur un sujet (« les avantages du télétravail »), dans les deux cas, puis le document au tour suivant. Aucune différence défavorable : les schémas partent tels quels, sans filtrage.
+
+Sur les GPU intégrés en Vulkan, la 0.40.17 charge aussi le modèle en `mmap`, pour que les tenseurs restés en mémoire centrale ne soient plus comptés une seconde fois dans la mémoire partagée du GPU. Sur le PC à RTX 3060 de ces mesures, Ollama écarte l'Iris Xe (`OLLAMA_IGPU_ENABLE` non posé) : sans effet là.
+
 ### Vérification
 
 ```bash

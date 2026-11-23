@@ -34,6 +34,10 @@ SECURITY_FLOORS = [
     ("aiohttp", "3.14.4", "3.14.3"),  # GHSA-2g87-pp6c-29x5 et 7 autres
     ("websockets", "17.4", "17.3"),  # recv() : plus de 4096 fragments
     ("sentence-transformers", "5.6.0", "5.5.1"),  # GHSA-jhr6-gm9c-rqjv
+    # GHSA-f56c-v883-vx8r, corrigé en 0.163.2 ; 0.165.0 pour max_body_size et form_limits
+    ("fastapi", "0.165.0", "0.163.1"),
+    # GHSA-gcq2-p324-qj2v et quatre autres avis des 18 et 20/11/2026 (Python 3.11.5+)
+    ("soupsieve", "4.1.3", "4.1.2"),
 ]
 
 
@@ -99,29 +103,52 @@ def test_cryptography_stays_48_on_intel_macs_only():
 
 
 @pytest.mark.parametrize("platform_name", PLATFORMS)
-def test_soupsieve_4_from_python_3_11_5(platform_name):
-    # GHSA-mmhr-3c5m-f64f corrigé en 4.0 ; les versions 3.0.2 et suivantes
-    # exigent Python 3.11.5
+def test_soupsieve_4_1_3_from_python_3_11_5(platform_name):
+    # GHSA-mmhr-3c5m-f64f corrigé en 4.0, les avis des 18 et 20/11/2026 en 4.1.3 ;
+    # les versions 3.0.2 et suivantes exigent Python 3.11.5
     for python in ("3.11.5", "3.12.0", "3.14.7"):
         specifier = _line(platform_name, "soupsieve", python).specifier
-        assert specifier.contains("4.0") and specifier.contains("4.1.1")
+        assert specifier.contains("4.1.3")
+        assert not specifier.contains("4.1.2") and not specifier.contains("4.0")
         assert not specifier.contains("3.0.2") and not specifier.contains("2.10")
     # Sous 3.11.0 à 3.11.4, aucune version corrigée ne s'installe : ligne ignorée
     for python in ("3.11.0", "3.11.4"):
         assert "soupsieve" not in [r.name.lower() for r in _active(platform_name, python)]
 
 
+@pytest.mark.parametrize("installed", ["2.10", "4.1.1"])
 @pytest.mark.parametrize("python, upgraded", [("3.11.4", False), ("3.11.5", True),
                                               ("3.14.7", True)])
-def test_soupsieve_is_upgraded_at_launch_from_python_3_11_5(monkeypatch, python, upgraded):
-    # Installation existante : beautifulsoup4 avait tiré la 2.10. Le lancement
-    # évalue python_full_version et réinstalle la ligne à partir de 3.11.5.
+def test_soupsieve_is_upgraded_at_launch_from_python_3_11_5(monkeypatch, python, upgraded,
+                                                            installed):
+    # Installation existante : beautifulsoup4 avait tiré la 2.10, ou la borne du
+    # 16/11/2026 la 4.1.1. Le lancement évalue python_full_version et réinstalle
+    # la ligne à partir de 3.11.5.
     environment = default_environment()
     environment.update(_python_markers(python))
     monkeypatch.setattr(markers, "default_environment", lambda: dict(environment))
-    monkeypatch.setattr(sync, "_installed_versions", lambda: {"soupsieve": "2.10"})
+    monkeypatch.setattr(sync, "_installed_versions", lambda: {"soupsieve": installed})
     missing = [line for line in sync.unsatisfied_requirements(TEXT) if line.startswith("soupsieve")]
-    assert missing == (['soupsieve>=4.0; python_full_version >= "3.11.5"'] if upgraded else [])
+    assert missing == (['soupsieve>=4.1.3; python_full_version >= "3.11.5"'] if upgraded else [])
+
+
+def test_fastapi_takes_the_opentelemetry_sdk_along_at_launch(monkeypatch):
+    # Ce PC le 23/11/2026 : FastAPI 0.115.8, et le SDK OpenTelemetry 1.39.1 de
+    # chromadb, qui fige l'API à sa version. « pip install fastapi>=0.165.0 » seul
+    # relevait l'API (1.45, exigée par FastAPI 0.163.2 et suivants) sans le SDK :
+    # chromadb ne s'importait plus. Les trois lignes partent dans le même appel de pip.
+    monkeypatch.setattr(sync, "_installed_versions", lambda: {
+        "fastapi": "0.115.8", "opentelemetry-api": "1.39.1", "opentelemetry-sdk": "1.39.1",
+        "opentelemetry-exporter-otlp-proto-grpc": "1.39.1"})
+    missing = set(sync.unsatisfied_requirements(TEXT))
+    assert {"fastapi>=0.165.0", "opentelemetry-sdk>=1.44.0",
+            "opentelemetry-exporter-otlp-proto-grpc>=1.44.0"} <= missing
+
+    monkeypatch.setattr(sync, "_installed_versions", lambda: {
+        "fastapi": "0.165.0", "opentelemetry-api": "1.45.2", "opentelemetry-sdk": "1.45.2",
+        "opentelemetry-exporter-otlp-proto-grpc": "1.45.2"})
+    assert not {line for line in sync.unsatisfied_requirements(TEXT)
+                if line.startswith(("fastapi", "opentelemetry"))}
 
 
 def test_old_pip_reads_requirements_as_utf8():

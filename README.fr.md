@@ -50,7 +50,7 @@ En 12 langues. Vos conversations, vos fichiers et votre mémoire restent sur vot
 
 ## 🚀 Démarrage rapide
 
-**Prérequis :** Python 3.11 à 3.14 et [Ollama](https://ollama.com/download).
+**Prérequis :** Python 3.11 à 3.14 (3.14.10 ou plus récent conseillé) et [Ollama](https://ollama.com/download).
 
 ```bash
 git clone https://github.com/gonicolas12/My_AI
@@ -68,6 +68,8 @@ Lancez ensuite l'application et choisissez **l'option 1 (Interface Graphique)** 
 Au **tout premier lancement**, My_AI s'affiche dans la langue de Windows (l'une des 12, l'anglais sinon, changeable dès l'assistant), détecte votre matériel (RAM, cœurs CPU, VRAM GPU), **recommande et télécharge** le modèle adapté, puis crée `my_ai` automatiquement. La fenêtre s'ouvre tout de suite sur un écran de chargement qui nomme chaque étape (Ollama, modèle, placement, moteur), puis passe au Chat.
 
 > ⚠️ **Python 3.15 n'est pas encore pris en charge** : onnxruntime, dont ont besoin chromadb (mémoire) et faster-whisper (dictée), n'existe pas encore pour lui, et `pip install -r requirements.txt` échoue. Python 3.10 est en fin de vie depuis le 1er octobre 2026, et les versions qui corrigent des failles de Pillow, websockets et PyMuPDF ne s'y installent plus. Hors de 3.11 à 3.14, les lanceurs s'arrêtent avec un message qui donne la version à installer.
+
+> 🔒 **Python 3.14.10 ou plus récent est conseillé** : les versions de sécurité du 25 octobre 2026 (3.14.10, 3.13.18, 3.12.16, 3.11.18) bloquent les clés de certificat eMudhra compromises, pip compris. Une version antérieure démarre quand même, avec un avertissement au lancement. Voir [docs/INSTALLATION.md](docs/INSTALLATION.md).
 
 > ⚠️ **Mac Intel (x86_64) : Python 3.12 maximum.** PyTorch ne publie plus de build x86_64 au-delà de la version 2.2.2, dont les wheels s'arrêtent à Python 3.12. Sous Python 3.13+, l'installation échoue. `launch.sh` vérifie ce point au démarrage. Apple Silicon, Windows et Linux ne sont pas concernés.
 

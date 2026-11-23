@@ -29,10 +29,12 @@ if __name__ == "__main__":
     no_console.start()
 
     # Python 3.11 à 3.14 (3.12 sur Mac Intel) : vérifié avant toute installation,
-    # pour un message clair plutôt qu'un échec de pip (cf. utils/python_version.py)
+    # pour un message clair plutôt qu'un échec de pip (cf. utils/python_version.py).
+    # Sans le correctif de sécurité de sa branche, un avertissement seulement :
+    # sans console, dans une notification qui ne bloque rien
     from utils.python_version import check_python_version
 
-    check_python_version(report=no_console.show_error)
+    check_python_version(report=no_console.show_error, notify=no_console.show_notice)
 
     # Paquets ajoutés à requirements.txt depuis le dernier lancement (git pull) :
     # installés avant les imports qui en ont besoin. Sans console, une fenêtre

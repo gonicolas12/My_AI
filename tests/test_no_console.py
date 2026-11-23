@@ -13,12 +13,13 @@ dans un pythonw neuf ; aucune boîte de dialogue ne s'y affiche (simulée).
 import os
 import subprocess
 import sys
+import threading
 import time
 from pathlib import Path
 
 import pytest
 
-from utils import no_console
+from utils import desktop_notify, no_console
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 IS_WINDOWS = sys.platform.startswith("win")
@@ -62,6 +63,28 @@ def test_with_a_console_nothing_changes(_fresh_state, tmp_path):
     # Les messages sont déjà dans la console : pas de boîte de dialogue
     assert no_console.show_error("Python 3.15 n'est pas pris en charge") is False
     assert no_console.wait_for_dismiss("Interface ouverte dans le navigateur") is False
+    assert _fresh_state == []
+
+
+def test_a_launch_warning_is_a_notification_that_blocks_nothing(_fresh_state, monkeypatch):
+    shown = []
+    done = threading.Event()
+
+    def notify_desktop(title, message):
+        shown.append((title, message, threading.current_thread() is threading.main_thread()))
+        done.set()
+        return True
+
+    monkeypatch.setattr(desktop_notify, "notify_desktop", notify_desktop)
+    # Avec une console : rien, l'avertissement y est déjà écrit
+    assert no_console.show_notice("Mise à jour de Python conseillée", "Installez…") is False
+    assert shown == []
+    # Sans console : une notification, envoyée d'un fil à part ; jamais de boîte
+    # de dialogue, qui attendrait qu'on la referme
+    monkeypatch.setitem(no_console._STATE, "active", True)
+    assert no_console.show_notice("Mise à jour de Python conseillée", "Installez…") is True
+    assert done.wait(5)
+    assert shown == [("Mise à jour de Python conseillée", "Installez…", False)]
     assert _fresh_state == []
 
 

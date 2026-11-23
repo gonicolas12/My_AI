@@ -430,6 +430,24 @@ def test_tunnels_forward_to_127_0_0_1(server, monkeypatch):
         assert cmd[cmd.index("-R") + 1] == f"80:{target}"
 
 
+def test_cloudflared_may_fall_back_to_http2(server, monkeypatch):
+    # Sans protocole demandé, cloudflared imposait QUIC (UDP) aux tunnels rapides
+    # jusqu'à sa version 2026.11.0, sans repli : sur un réseau qui bloque l'UDP
+    # sortant, le tunnel ne s'établissait jamais. « auto » : QUIC, puis HTTP/2,
+    # quelle que soit la version du binaire (PATH ou tools/)
+    commands = {}
+    monkeypatch.setattr(relay_server.shutil, "which", lambda name: name)
+    monkeypatch.setattr(server, "_spawn_tunnel",
+                        lambda provider, cmd, **kwargs: commands.__setitem__(provider, cmd))
+
+    server._start_cloudflared()
+
+    cmd = commands["cloudflared"]
+    assert cmd[cmd.index("--protocol") + 1] == "auto"
+    # Option de la commande « tunnel », avant l'adresse servie
+    assert cmd.index("tunnel") < cmd.index("--protocol") < cmd.index("--url")
+
+
 def test_serveo_address_is_read_on_its_new_domain(server, monkeypatch):
     # serveo annonce maintenant *.serveousercontent.com : l'ancien motif (*.serveo.net)
     # ne le voyait pas, et serveo n'entrait jamais dans le QR code (2026-10-19)
