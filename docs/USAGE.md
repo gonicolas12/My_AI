@@ -1443,7 +1443,7 @@ Un document **généré** depuis le mobile (« *génère un pdf sur…* ») arri
 
 Détails techniques :
 
-- L'upload est **streamé** vers un répertoire temporaire (`{tempdir}/my_ai_relay_uploads/`) avec validation d'extension et plafond de **25 Mo** par fichier — l'upload chiffré (`POST /api/upload`) est partagé par le Chat et la page Agents
+- L'upload est **streamé** vers un répertoire temporaire (`{tempdir}/my_ai_relay_uploads/`) avec validation d'extension et plafond de **25 Mo** par fichier — l'upload chiffré (`POST /api/upload`) est partagé par le Chat et la page Agents. Un envoi plus gros est refusé avant d'être lu (« Fichier trop volumineux (> 25 Mo) »), comme un envoi de plusieurs fichiers ou accompagné d'autres champs ; les autres requêtes du Relay sont bornées à 64 Kio (limites `max_body_size` et `form_limits` de FastAPI 0.165)
 - **Sur l'onglet Agents**, le contenu des documents (et la description vision des images) est injecté en fin de tâche sous forme de sections `--- Fichier joint : … ---` avant le lancement du workflow (même logique que la page Agents du PC, `processors/attachments.py`)
 - Un fichier envoyé sans message (Chat) déclenche une requête par défaut (`"Décris cette image en détail."` ou `"Analyse ce fichier et résume-le."`)
 - Image + documents peuvent être combinés dans un même message ; le premier fichier image est envoyé au modèle vision, les autres rejoignent le contexte

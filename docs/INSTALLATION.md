@@ -189,7 +189,7 @@ click>=8.0.0              # CLI interface
 aiohttp>=3.14.4           # Async HTTP (3.14.4 : 8 avis de sécurité corrigés)
 requests>=2.31.0          # HTTP requests
 beautifulsoup4>=4.12.0    # Web scraping
-soupsieve>=4.0            # Sélecteurs CSS de beautifulsoup4 (4.0 : GHSA-mmhr-3c5m-f64f ; Python 3.11.5+)
+soupsieve>=4.1.3          # Sélecteurs CSS de beautifulsoup4 (4.1.3 : avis jusqu'au 20/11/2026 ; Python 3.11.5+)
 pyyaml>=6.0               # Configuration
 python-dotenv>=1.0.0      # Environment variables
 ```
@@ -222,7 +222,8 @@ python-bidi>=0.4.2       # Arabe des PDF : ordre de droite à gauche
 ```
 pywebview>=6.2           # Fenêtre native (WebView2 sous Windows, GTK ou Qt ailleurs)
 pythonnet>=3.1           # Pont .NET de pywebview, Windows (3.1 ou plus pour Python 3.14)
-fastapi>=0.100.0         # Serveur local de la fenêtre (127.0.0.1)
+fastapi>=0.165.0         # Serveur local de la fenêtre (127.0.0.1) ; 0.163.2 : GHSA-f56c-v883-vx8r
+opentelemetry-sdk>=1.44.0  # Relevé avec FastAPI pour chromadb (voir requirements.txt)
 uvicorn>=0.23.0          # Serveur ASGI
 pillow>=13.0.0           # Image processing (13.0.0 : une quarantaine d'avis corrigés)
 websockets>=17.4         # WebSocket du Relay, via uvicorn
@@ -323,7 +324,7 @@ pip install wmi
 
 ### Modules v7.0.0 (Optionnel — dégradation gracieuse si absents)
 ```
-fastapi>=0.100.0         # API REST locale
+fastapi>=0.165.0         # API REST locale
 uvicorn>=0.23.0          # Serveur ASGI pour FastAPI
 langdetect>=1.0.9        # Détection automatique de langue
 diskcache>=5.6.0         # Cache web persistant
@@ -332,7 +333,7 @@ reportlab>=4.0.0         # Export PDF des conversations
 
 ### My_AI Relay (Optionnel — accès mobile)
 ```
-fastapi>=0.100.0         # Serveur WebSocket Relay (partagé avec l'API REST)
+fastapi>=0.165.0         # Serveur WebSocket Relay (partagé avec l'API REST) ; envois bornés avant lecture
 uvicorn>=0.23.0          # Serveur ASGI (partagé avec l'API REST)
 qrcode[svg]>=7.4.2       # Génération du QR code d'accès
 requests>=2.31.0         # Téléchargement automatique de cloudflared

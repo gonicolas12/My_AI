@@ -13,6 +13,7 @@ import asyncio
 import base64
 import hmac
 import http.client
+import inspect
 import json
 import os
 import platform
@@ -112,6 +113,16 @@ _DOC_EXTS = {
     ".py", ".js", ".html", ".css", ".json", ".xml", ".md", ".txt",
 }
 _MAX_UPLOAD_SIZE = 25 * 1024 * 1024  # 25 Mo
+# Corps de POST /api/upload, refusé par FastAPI avant d'être lu en entier
+# (max_body_size) : le chiffré (_MAX_UPLOAD_SIZE + 1 024 octets au plus, vérifié
+# dans la fonction) dans son enveloppe multipart, de 173 à 225 octets selon le
+# client (extension VS Code ; Chromium et Safari ; Firefox) ; marge de 4 Kio
+_UPLOAD_BODY_MAX = _MAX_UPLOAD_SIZE + 1024 + 4096
+# Un seul fichier, aucun autre champ (form_limits)
+_UPLOAD_FORM_LIMITS = {"max_files": 1, "max_fields": 0}
+# Corps des autres requêtes : POST /api/unlock, un code chiffré de quelques
+# centaines d'octets (les WebSockets n'y sont pas soumis)
+_BODY_MAX = 64 * 1024
 # Envois gardés pour leur aperçu (pièce jointe touchée avant ou après l'envoi)
 _UPLOADS_SHOWN_MAX = 500
 # Fichiers cités par les résultats d'agents et les réponses Code envoyés au
@@ -145,6 +156,65 @@ except ImportError:
     _QR_AVAILABLE = False
 
 logger = setup_logger("RelayServer")
+
+
+def _fastapi_options(function: Callable[..., Any], **options: Any) -> Dict[str, Any]:
+    """Options que cette version de FastAPI accepte (max_body_size : 0.164 ; form_limits : 0.165).
+
+    requirements.txt demande la 0.165, installée au lancement ; si pip n'a pas
+    pu le faire (hors ligne), le Relay démarre quand même, sans ces limites :
+    la fonction d'envoi borne toujours ce qu'elle lit.
+    """
+    known = inspect.signature(function).parameters
+    missing = sorted(set(options) - set(known))
+    if missing:
+        logger.warning("FastAPI trop ancien pour %s : requirements.txt demande la 0.165 ou plus",
+                       ", ".join(missing))
+    return {name: value for name, value in options.items() if name in known}
+
+
+class _UploadTooLarge:
+    """Envoi refusé par FastAPI avant d'être lu : le message de la fonction d'envoi.
+
+    Quand l'en-tête Content-Length dépasse max_body_size, Starlette répond
+    lui-même « Content Too Large » en texte brut, sans passer par les
+    gestionnaires d'erreurs de l'appli : le téléphone et l'extension VS Code,
+    qui affichent le champ « detail » d'une réponse JSON, n'auraient montré que
+    « HTTP 413 ». Enveloppe l'appli entière : la limite de l'appli (_BODY_MAX)
+    s'applique en dehors de tout middleware ajouté à FastAPI.
+    """
+
+    def __init__(self, app: Any) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Dict[str, Any], receive: Callable[..., Any],
+                       send: Callable[..., Any]) -> None:
+        if scope["type"] != "http" or scope.get("path") != "/api/upload":
+            await self.app(scope, receive, send)
+            return
+        replaced = False
+
+        async def send_message(message: Dict[str, Any]) -> None:
+            nonlocal replaced
+            if replaced:
+                return  # corps d'origine écarté
+            if message["type"] == "http.response.start" and message["status"] == 413:
+                replaced = True
+                body = json.dumps(
+                    {"detail": tr("relay.fileTooBig", mb=_MAX_UPLOAD_SIZE // (1024 * 1024))},
+                    ensure_ascii=False,
+                ).encode("utf-8")
+                headers = [(name, value) for name, value in message.get("headers", [])
+                           if name.lower() not in (b"content-type", b"content-length")]
+                headers += [(b"content-type", b"application/json"),
+                            (b"content-length", str(len(body)).encode("ascii"))]
+                await send({"type": "http.response.start", "status": 413, "headers": headers})
+                await send({"type": "http.response.body", "body": body})
+                return
+            await send(message)
+
+        await self.app(scope, receive, send_message)
+
 
 # ---------------------------------------------------------------------------
 # Chemin vers les fichiers statiques
@@ -815,13 +885,17 @@ class RelayServer:
     # Construction de l'application FastAPI
     # ------------------------------------------------------------------
 
-    def _create_app(self) -> "FastAPI":
+    def _create_app(self) -> Any:
+        """Appli ASGI du Relay : FastAPI, enveloppée par _UploadTooLarge."""
         app = FastAPI(
             title="My_AI Relay",
             description="Accès mobile à My_AI",
             version="1.0.0",
             docs_url=None,  # Pas de docs Swagger en production
             redoc_url=None,
+            # Corps borné avant d'être lu : le tunnel public mène ici sans jeton
+            # (POST /api/upload a sa propre limite)
+            **_fastapi_options(FastAPI.__init__, max_body_size=_BODY_MAX),
         )
 
         app.add_middleware(
@@ -838,7 +912,7 @@ class RelayServer:
         if _STATIC_DIR.exists():
             app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")
 
-        return app
+        return _UploadTooLarge(app)
 
     def _register_routes(self, app: "FastAPI") -> None:
         server = self  # Capture pour les closures
@@ -1003,7 +1077,10 @@ class RelayServer:
         # POST /api/upload — Upload de fichier/image depuis le mobile
         # =================================================================
 
-        @app.post("/api/upload")
+        # FastAPI lit le formulaire avant d'appeler la fonction (donc avant
+        # _authorize) : corps et formulaire bornés avant leur lecture
+        @app.post("/api/upload", **_fastapi_options(
+            app.post, max_body_size=_UPLOAD_BODY_MAX, form_limits=_UPLOAD_FORM_LIMITS))
         async def upload_file(
             token: str = Query(...),
             file: UploadFile = File(...),
@@ -1022,7 +1099,10 @@ class RelayServer:
             vrai nom au tunnel public). La taille `_MAX_UPLOAD_SIZE`
             s'applique au **clair** : on borne la taille du ciphertext
             lue à `_MAX_UPLOAD_SIZE + 1024` (marge nonce+tag+header) avant
-            de déchiffrer, et on revérifie après déchiffrement.
+            de déchiffrer, et on revérifie après déchiffrement. Avant tout
+            cela, FastAPI refuse un corps de plus de `_UPLOAD_BODY_MAX`
+            octets (413, même message) et plus d'un fichier ou un autre
+            champ (400), sans les lire.
             """
             _authorize(token, session)
 
