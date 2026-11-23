@@ -16,7 +16,7 @@ import { Markdown } from './markdown/Markdown';
 import { splitSources } from './markdown/sources';
 import { CopyButton, MessageActions } from './MessageActions';
 import { RegenerateButton, SpeakButton, StarRating } from './MessageControls';
-import { buildParts } from './parts';
+import { buildParts, textIndex } from './parts';
 import { Reasoning } from './Reasoning';
 import { SourcesButton } from './SourcesButton';
 import { ToolRow } from './ToolRow';
@@ -41,12 +41,14 @@ function activityOf(live: LiveTurn | null, t: Translate): string | null {
   if (live.kind !== 'chat') return live.status || null;
   if (reasoningActive(live)) return null; // le bloc Réflexion s'anime
   const last = live.tools[live.tools.length - 1];
+  // Rien d'écrit depuis le dernier appel (sa position, convertie : textIndex)
+  const nothingSince = last ? textIndex(live.text, last.at ?? 0) >= live.text.length : false;
   if (last?.name === 'synthesis') {
-    return live.text.length <= (last.at ?? 0) ? toolText(last.label) : null;
+    return nothingSince ? toolText(last.label) : null;
   }
   if (last && last.ok === undefined) return null; // la ligne de l'outil s'anime
   if (!live.text) return live.thinking ? t('chat.activity.writing') : t('chat.activity.thinking');
-  if (last && live.text.length <= (last.at ?? 0)) return t('chat.activity.thinking');
+  if (nothingSince) return t('chat.activity.thinking');
   return null;
 }
 

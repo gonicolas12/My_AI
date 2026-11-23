@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { splitAttachmentLines } from './attachments';
-import { buildParts } from './parts';
+import { buildParts, textIndex } from './parts';
 import { toolOutcome, toolText } from './tools';
 
 describe('buildParts', () => {
@@ -25,6 +25,36 @@ describe('buildParts', () => {
     const before = buildParts('Avant\n\nDébut', tools);
     const after = buildParts('Avant\n\nDébut de la suite', tools);
     expect(after.map((part) => part.key)).toEqual(before.map((part) => part.key));
+  });
+
+  it('compte les emojis comme le serveur (un caractère chacun)', () => {
+    // Le serveur donne la longueur de Python : 3 caractères ici, 5 unités en JavaScript.
+    // La carte « Mémorisé », envoyée après la réponse, tombait avant son dernier emoji
+    const text = 'Bon appétit 🥗 ! 😊';
+    const at = [...text].length;
+    const parts = buildParts(text, [{ name: 'remember_fact', label: 'Mémorisé', at }]);
+    expect(parts.map((part) => (part.kind === 'text' ? part.text : `[${part.tool.name}]`))).toEqual(
+      ['Bon appétit 🥗 ! 😊', '[remember_fact]'],
+    );
+    // Au milieu : coupé au bon endroit, même après un emoji
+    const middle = buildParts('🥗 Salade.\n\nSuite', [
+      { name: 'web_search', label: 'R', at: [...'🥗 Salade.'].length },
+    ]);
+    expect(middle.map((part) => (part.kind === 'text' ? part.text : `[${part.tool.name}]`))).toEqual(
+      ['🥗 Salade.', '[web_search]', '\n\nSuite'],
+    );
+  });
+});
+
+describe('textIndex', () => {
+  it('passe d’une position en caractères à un indice JavaScript', () => {
+    expect(textIndex('abc', 2)).toBe(2);
+    expect(textIndex('a😊b', 2)).toBe(3);
+    expect(textIndex('😊😊', 2)).toBe(4);
+    expect(textIndex('é🌱', 1)).toBe(1);
+    expect(textIndex('a😊', 0)).toBe(0);
+    // Au-delà du texte (réponse plus courte, sources retirées) : sa fin
+    expect(textIndex('a😊', 9)).toBe(3);
   });
 });
 

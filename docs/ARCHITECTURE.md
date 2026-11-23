@@ -1380,7 +1380,9 @@ Chaque événement : type, conversation_id, message_id, seq (croissant), payload
 ├─ Chat : message.user (source desktop ou mobile), assistant.start / token /
 │  thinking / thinking_done / done / error / interrupted
 ├─ Outils et fichiers : tool.call, tool.result, confirm.request,
-│  document.created, image.progress, image.created
+│  document.created, image.progress, image.created. tool.call porte « at », sa
+│  place dans le texte en caractères (len() de Python), que la page convertit
+│  en indice JavaScript, un emoji y comptant pour deux (parts.ts, textIndex)
 ├─ Appli : engine.status, relay.status, scheduler.result, resources.sample,
 │  voice.*, notification
 ├─ Agents : agents.* (événements d'AgentRelayService, texte des sections en suite)
