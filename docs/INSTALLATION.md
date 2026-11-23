@@ -27,10 +27,29 @@ My Personal AI est une **IA 100% locale** avec un système de contexte de **10 M
 > faster-whisper) : `pip install -r requirements.txt` y échoue. Les lanceurs
 > (`launch.bat`, `launch.sh`, `launch_unified.py`, `main.py`) s'arrêtent hors
 > de 3.11 à 3.14 avec un message qui donne la version à installer.
+
+> 🔒 **Correctif de sécurité de Python du 25 octobre 2026.** Des clés de
+> l'autorité de certification intermédiaire eMudhra ont été compromises le
+> 20 octobre 2026. Python 3.14.10, 3.13.18, 3.12.16 et 3.11.18 les refusent dans
+> le module `ssl` (CVE-2026-115557), même pour pip et pour les connexions qui
+> utilisent les autorités de certifi. Avec une version antérieure de sa
+> branche, My_AI démarre quand même, mais avertit au lancement (dans la
+> console, ou par une notification quand il est lancé depuis l'épingle de la
+> barre des tâches) : ses connexions HTTPS, dont les installations
+> automatiques de pip, sont moins protégées contre une interception.
+> - **Windows et Mac Apple Silicon** : installez Python 3.14.10 ou plus récent
+>   depuis python.org, seule branche qui a encore des installeurs. Avec un
+>   dossier `venv/`, recréez-le avec ce Python, puis
+>   `pip install -r requirements.txt`.
+> - **Linux et Mac Intel** : installez le Python corrigé de votre distribution
+>   ou de votre gestionnaire de paquets (Homebrew, MacPorts, pyenv…) ; les
+>   branches 3.11 à 3.13 ne publient plus que leurs sources. Un correctif
+>   rétroporté sans changement de numéro de version est reconnu : My_AI
+>   cherche les clés refusées dans le module `_ssl` de Python.
 - **Connexion internet** (installation uniquement, optionnelle ensuite pour recherche web)
 
 **Configuration recommandée:**
-- Python 3.13 ou 3.14
+- Python 3.14.10 ou plus récent
 - 16 GB RAM
 - 2 GB d'espace disque
 - Processeur multi-core (pour opérations parallèles)

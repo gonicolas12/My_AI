@@ -31,12 +31,15 @@ def test_the_launcher_works_from_any_folder(tmp_path):
     assert list(tmp_path.iterdir()) == []  # ni logs/ ni data/ ici
 
 
-# Le lanceur, tel que l'épingle le lance, sans vraie boîte de dialogue en test
+# Le lanceur, tel que l'épingle le lance, sans vraie boîte de dialogue ni
+# notification en test (un Python sans le correctif de sécurité de sa branche
+# est signalé par une notification)
 PINNED = (
     "import runpy, sys\n"
     "sys.path.insert(0, sys.argv[1])\n"
-    "from utils import no_console\n"
+    "from utils import desktop_notify, no_console\n"
     "no_console._message_box = lambda message, icon: print('BOÎTE', message) or True\n"
+    "desktop_notify.notify_desktop = lambda title, message: print('NOTIFICATION', title) or True\n"
     "sys.argv = [sys.argv[2], '--help']\n"
     "runpy.run_path(sys.argv[0], run_name='__main__')\n"
 )

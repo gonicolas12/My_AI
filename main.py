@@ -16,7 +16,8 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 if __name__ == "__main__":
     # Python 3.11 à 3.14 (3.12 sur Mac Intel) : vérifié avant toute installation,
-    # pour un message clair plutôt qu'un échec de pip (cf. utils/python_version.py)
+    # pour un message clair plutôt qu'un échec de pip (cf. utils/python_version.py).
+    # Sans le correctif de sécurité de sa branche, un avertissement seulement
     from utils.python_version import check_python_version
 
     check_python_version()

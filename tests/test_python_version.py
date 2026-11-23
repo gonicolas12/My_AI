@@ -17,6 +17,7 @@ import json
 import os
 import sys
 import tokenize
+import types
 import warnings
 from pathlib import Path
 
@@ -57,7 +58,11 @@ def test_message_on_intel_mac_recommends_312():
 def test_message_exists_in_the_12_languages(code):
     catalog = json.loads((ROOT / "core" / "locales" / f"{code}.json").read_text(encoding="utf-8"))
     for key, placeholders in (("launch.pythonUnsupported", ("{version}", "{minimum}", "{maximum}")),
-                              ("launch.pythonInstall", ("{maximum}",))):
+                              ("launch.pythonInstall", ("{maximum}",)),
+                              ("launch.pythonOutdated", ("{version}", "{fixed}")),
+                              ("launch.pythonUpdateInstaller", ("{recommended}", "python.org")),
+                              ("launch.pythonUpdatePackages", ("{fixed}",)),
+                              ("launch.pythonOutdatedTitle", ("Python",))):
         assert all(p in catalog[key] for p in placeholders), (code, key)
 
 
@@ -100,6 +105,105 @@ def test_without_console_the_message_is_also_shown_elsewhere(monkeypatch, capsys
     assert stop.value.code == 1
     assert len(shown) == 1 and "3.15" in shown[0]
     assert shown[0] in capsys.readouterr().out  # écrit aussi dans les sorties
+
+
+# ── Correctif de sécurité du 25/10/2026 (clés eMudhra) : avertissement ──────
+
+
+@pytest.mark.parametrize("version, warned", [
+    ((3, 11, 9), True), ((3, 11, 17), True), ((3, 11, 18), False), ((3, 11, 19), False),
+    ((3, 12, 15), True), ((3, 12, 16), False),
+    ((3, 13, 17), True), ((3, 13, 18), False),
+    ((3, 14, 7), True), ((3, 14, 9), True), ((3, 14, 10), False), ((3, 14, 11), False),
+])
+def test_security_fix_thresholds(version, warned):
+    assert (pv.outdated_message(version, "Windows", "AMD64") is not None) is warned
+
+
+def test_intel_mac_312_without_the_fix_is_warned():
+    problem, advice = pv.outdated_message((3, 12, 15), "Darwin", "x86_64").splitlines()
+    assert "3.12.15" in problem
+    # Le Mac Intel s'arrête à 3.12, sans installeur corrigé : le gestionnaire de paquets
+    assert "3.12.16" in advice and "3.14" not in advice
+    assert pv.outdated_message((3, 12, 16), "Darwin", "x86_64") is None
+
+
+@pytest.mark.parametrize("system, machine, installer", [
+    ("Windows", "AMD64", True), ("Darwin", "arm64", True),
+    ("Linux", "x86_64", False), ("Darwin", "x86_64", False),
+])
+def test_advice_follows_the_installers_of_python_org(system, machine, installer):
+    problem, advice = pv.outdated_message((3, 11, 9), system, machine).splitlines()
+    assert "3.11.9" in problem and "3.11.18" in problem
+    # python.org n'a d'installeur corrigé que pour la 3.14 (Windows, macOS)
+    assert ("3.14.10" in advice) is installer
+    assert ("python.org" in advice) is installer
+    assert ("3.11.18" in advice) is not installer
+
+
+def test_outside_the_supported_range_there_is_only_the_stop():
+    assert pv.outdated_message((3, 10, 19), "Windows", "AMD64") is None
+    assert pv.outdated_message((3, 15, 0), "Windows", "AMD64") is None
+
+
+def test_the_fix_is_read_in_the_ssl_module(tmp_path, monkeypatch):
+    """Distribution Linux : correctif rétroporté, numéro de version inchangé."""
+    module = tmp_path / "_ssl.cpython-311-x86_64-linux-gnu.so"
+    digest = pv._REFUSED_KEY_DIGESTS[3]  # pylint: disable=protected-access
+    module.write_bytes(b"\x7fELF" + os.urandom(512) + digest + os.urandom(512))
+    monkeypatch.setitem(sys.modules, "_ssl", types.SimpleNamespace(__file__=str(module)))
+    assert pv.ssl_refuses_compromised_keys() is True
+    module.write_bytes(b"\x7fELF" + os.urandom(1024))
+    assert pv.ssl_refuses_compromised_keys() is False
+    # Module intégré à l'interpréteur, sans fichier : on ne sait pas
+    monkeypatch.setitem(sys.modules, "_ssl", types.SimpleNamespace())
+    assert pv.ssl_refuses_compromised_keys() is None
+
+
+@pytest.mark.parametrize("found, warned", [(True, False), (False, True), (None, True)])
+def test_a_backported_fix_silences_the_warning(monkeypatch, found, warned):
+    monkeypatch.setattr(pv.sys, "version_info", (3, 11, 2, "final", 0))
+    monkeypatch.setattr(pv, "ssl_refuses_compromised_keys", lambda: found)
+    assert (pv.outdated_message() is not None) is warned
+
+
+def test_a_fixed_python_has_the_refused_keys_in_its_ssl_module():
+    # Vérifié pour de vrai dès que la suite tourne sous un Python corrigé
+    fixed = pv.SECURITY_FIXES.get(tuple(sys.version_info[:2]))
+    if fixed is None or tuple(sys.version_info[:3]) < fixed:
+        pytest.skip("Python sans le correctif de sa branche")
+    assert pv.ssl_refuses_compromised_keys() in (True, None)
+
+
+def test_a_python_without_the_fix_still_launches(monkeypatch, capsys):
+    monkeypatch.setattr(pv.sys, "version_info", (3, 14, 7, "final", 0))
+    monkeypatch.setattr(pv.platform, "system", lambda: "Windows")
+    monkeypatch.setattr(pv, "ssl_refuses_compromised_keys", lambda: False)
+    stops, notices = [], []
+    pv.check_python_version(report=stops.append,
+                            notify=lambda title, text: notices.append((title, text)))
+    out = capsys.readouterr().out
+    assert "3.14.7" in out and "3.14.10" in out
+    # Aucune boîte de dialogue ; une notification, le conseil d'abord (220 caractères au plus)
+    assert stops == [] and len(notices) == 1
+    title, text = notices[0]
+    advice, problem = text.splitlines()
+    assert title and "3.14.10" in advice and "3.14.7" in problem
+    assert sorted(out.split()) == sorted(text.split())
+
+
+def test_a_fixed_python_says_nothing(monkeypatch, capsys):
+    monkeypatch.setattr(pv.sys, "version_info", (3, 14, 10, "final", 0))
+    notices = []
+    pv.check_python_version(notify=lambda *args: notices.append(args))
+    assert capsys.readouterr().out == "" and notices == []
+
+
+def test_the_pinned_launch_notifies_without_blocking():
+    # Sans console (épingle), l'avertissement passe par une notification, pas par
+    # la boîte de dialogue des erreurs, qui attend qu'on la referme
+    source = (ROOT / "launch_unified.py").read_text(encoding="utf-8")
+    assert "notify=no_console.show_notice" in source
 
 
 # ── Le code se lit sous Python 3.11 ─────────────────────────────────────────
