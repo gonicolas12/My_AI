@@ -77,6 +77,7 @@ try:
         fact_for_prompt,
         is_assistant_fact,
         memorization_confirmation,
+        message_language,
         reply_language,
     )
     from .chat_memory import chat_memory_for
@@ -825,6 +826,13 @@ class AIEngine:
         request = self._request_language(text)
         if request:
             return request
+        # Un message dans l'une des dix autres langues, avec des faits en mémoire : le
+        # bloc MÉMOIRE PERSISTANTE, en français, faisait encore répondre en français
+        # malgré sa note de langue (« Em que trabalho? » → « Tu travailles comme
+        # enfermeiro » ; 7 réponses sur 80, en portugais, néerlandais et arabe)
+        spoken = message_language(text) if _KB_AVAILABLE else ""
+        if spoken and self._memory_shown(text):
+            return spoken
         default = self._default_language()
         if default == "fr":
             return None
@@ -834,6 +842,17 @@ class AIEngine:
         except Exception:
             detected = default
         return default if detected == default else None
+
+    def _memory_shown(self, text: str) -> bool:
+        """Le prompt de ce message montrera-t-il des faits de la mémoire (bloc MÉMOIRE
+        PERSISTANTE, _knowledge_base_context) ?"""
+        kb = getattr(self, "knowledge_base", None)
+        if not _KB_AVAILABLE or kb is None:
+            return False
+        try:
+            return bool(kb.select_facts(text))
+        except Exception:  # pylint: disable=broad-except
+            return False
 
     def _request_language(self, text: str) -> Optional[str]:
         """
@@ -2935,15 +2954,49 @@ Que voulez-vous que je fasse pour vous ?""",
                 "LANGUE DE RÉPONSE : l'utilisateur t'écrit en anglais. Réponds-lui en "
                 "anglais, sans commenter ce choix."
             )
-        elif block and request:
-            name = self._LANGUAGE_NAMES[request]
-            note = (
-                f"LANGUE DE RÉPONSE : l'utilisateur t'écrit en {name}. Réponds-lui en "
-                f"{name}, sans commenter ce choix."
-            )
+        elif block and (request or message_language(query)):
+            note = self._spoken_language_note(request or message_language(query))
         else:
             return block
         return block + ("\n\n" if block else "") + note
+
+    def _spoken_language_note(self, spoken: str) -> str:
+        """
+        Fin du bloc mémoire pour un message dans l'une des dix autres langues : la
+        sienne, et ses mots à la première personne qui passent à la deuxième.
+
+        Sans elle, le bloc en français l'emportait pour une simple question : « Onde
+        moro? » → « Tu vis à Lisboa » (portugais, néerlandais, chinois, japonais,
+        arabe : 17 réponses sur 80). Et ses mots à la première personne, dans sa
+        question comme dans ses faits, ne passaient pas à la deuxième : « Hoe heet mijn
+        zoon? » → « Mijn zoon heet Daan » (les exemples des règles sont en français).
+        Les exemples d'ici ne parlent ni de famille, ni de ville, ni de métier : sonde
+        de 4 questions dans les dix langues, 2 passages, 51 réponses justes sur 80
+        avant, 73 ainsi (lot écrit ensuite, sœur, chat, instrument : 57, puis 64). Un
+        verbe conjugué et la mère en japonais et en coréen (« 母 » → « お母さん »)
+        n'ont rien gagné (65 et 64).
+        """
+        name = self._LANGUAGE_NAMES[spoken]
+        mine, yours = self._PERSON_EXAMPLES[spoken]
+        return (
+            f"LANGUE DE RÉPONSE : l'utilisateur t'écrit en {name}. Réponds-lui en "
+            f"{name}, sans commenter ce choix. Ses mots à la première personne parlent "
+            f"de lui ({mine}) : dans ta réponse, dis-les à la deuxième ({yours})."
+        )
+
+    # Ses mots et ceux de ta réponse, dans les dix autres langues (_spoken_language_note)
+    _PERSON_EXAMPLES = {
+        "es": ("« mi coche », « me gusta »", "« tu coche », « te gusta »"),
+        "de": ("« mein Auto », « ich mag »", "« dein Auto », « du magst »"),
+        "it": ("« la mia auto », « mi piace »", "« la tua auto », « ti piace »"),
+        "pt": ("« o meu carro », « gosto »", "« o teu carro », « gostas »"),
+        "nl": ("« mijn auto », « ik hou van »", "« jouw auto », « jij houdt van »"),
+        "ru": ("« моя машина », « я люблю »", "« твоя машина », « ты любишь »"),
+        "zh": ("« 我的车 », « 我喜欢 »", "« 你的车 », « 你喜欢 »"),
+        "ja": ("« 私の車 », « 私は好きです »", "« あなたの車 », « あなたは好きです »"),
+        "ko": ("« 제 차 », « 저는 좋아해요 »", "« 당신의 차 », « 좋아하세요 »"),
+        "ar": ("« سيارتي », « أحب »", "« سيارتك », « تحب »"),
+    }
 
     def _codebase_context(self, query: str) -> str:
         """

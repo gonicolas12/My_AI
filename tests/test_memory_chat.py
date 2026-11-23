@@ -497,6 +497,44 @@ def test_who_am_i_question_gets_the_user_facts_in_the_third_person(kb, ollama):
     assert "« Qui suis-je ? »" in system  # consigne explicite pour cette question
 
 
+@pytest.mark.parametrize(("fact", "question", "code", "name"), [
+    ("Моего сына зовут Артём, ему семь лет", "Как зовут моего сына?", "ru", "russe"),
+    ("Ik woon in Utrecht", "Waar woon ik?", "nl", "néerlandais"),
+    ("Moro em Lisboa", "Onde moro?", "pt", "portugais"),
+])
+def test_a_question_in_another_language_gets_his_words_and_his_language(kb, ollama, fact,
+                                                                         question, code, name):
+    """Un fait retenu dans l'une des dix autres langues est cité comme ses mots : nu, le
+    vrai modèle le reprenait à la première personne (« Моего сына зовут Артём »). La
+    langue de sa question est rappelée en fin de bloc, avec ce que deviennent ses mots
+    à la première personne, puis à la fin de son message, comme pour l'anglais : le bloc
+    en français faisait répondre en français (« Onde moro? » → « Tu vis à Lisboa »)."""
+    kb.remember(fact, source="conversation", scope="chat")
+    ollama.replies.append("…")
+
+    _engine(kb).process_query_stream(question, on_token=lambda _t: None)
+
+    system = ollama.systems()[0]
+    assert f"- [general] L'utilisateur t'a dit : « {fact} »" in system
+    mine, yours = AIEngine._PERSON_EXAMPLES[code]  # pylint: disable=protected-access
+    assert system.rstrip().endswith(
+        f"LANGUE DE RÉPONSE : l'utilisateur t'écrit en {name}. Réponds-lui en {name}, sans "
+        f"commenter ce choix. Ses mots à la première personne parlent de lui ({mine}) : dans "
+        f"ta réponse, dis-les à la deuxième ({yours}).")
+    suffix = AIEngine._LANG_SUFFIXES[code]  # pylint: disable=protected-access
+    assert ollama.requests[0]["messages"][-1]["content"] == f"{question}\n\n({suffix})"
+
+
+def test_a_question_in_another_language_without_facts_is_not_reminded(kb, ollama):
+    """Sans fait en mémoire, ni bloc ni rappel : rien ne change pour lui."""
+    ollama.replies.append("…")
+
+    _engine(kb).process_query_stream("Onde fica Lisboa?", on_token=lambda _t: None)
+
+    assert "LANGUE DE RÉPONSE" not in ollama.systems()[0]
+    assert ollama.requests[0]["messages"][-1]["content"] == "Onde fica Lisboa?"
+
+
 # ── Pièces jointes ──────────────────────────────────────────────────────────
 
 

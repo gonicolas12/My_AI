@@ -279,12 +279,14 @@ class _Detector:
         return self.detected
 
 
-def _reminded(default, detected, text="ok"):
+def _reminded(default, detected, text="ok", facts=False):
     from core.ai_engine import AIEngine  # pylint: disable=import-outside-toplevel
     engine = SimpleNamespace(
         language_detector=_Detector(default, detected),
         _memory_reply_language=lambda: None,
         _message_in_english=lambda _text: detected == "en",
+        # Des faits en mémoire : le bloc MÉMOIRE PERSISTANTE, en français, sera montré
+        _memory_shown=lambda _text: facts,
         _LANG_SUFFIXES=AIEngine._LANG_SUFFIXES,  # pylint: disable=protected-access
     )
     engine._default_language = lambda: AIEngine._default_language(engine)  # pylint: disable=protected-access
@@ -304,6 +306,12 @@ def test_engine_reminds_the_default_language_at_the_end_of_the_message():
     # bloc MÉMORISATION, en français, faisait répondre en français)
     assert _reminded("fr", "es", "Recuerda que vivo en Madrid") == "es"
     assert _reminded("fr", "es", "¿Qué tiempo hace en Madrid?") is None
+    # Une question dans l'une de ces langues, avec des faits en mémoire : la sienne. Le
+    # bloc MÉMOIRE PERSISTANTE, en français, faisait encore répondre en français
+    # (« Em que trabalho? » → « Tu travailles comme enfermeiro »)
+    assert _reminded("fr", "pt", "Em que trabalho?", facts=True) == "pt"
+    assert _reminded("fr", "ru", "Как зовут моего сына?", facts=True) == "ru"
+    assert _reminded("fr", "fr", "Où est-ce que j'habite ?", facts=True) is None
 
 
 # ── Page mobile du Relay ─────────────────────────────────────────────────────
