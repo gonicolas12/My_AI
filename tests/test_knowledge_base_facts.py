@@ -187,6 +187,21 @@ def test_first_person_fact_is_shown_in_the_third_person(kb):
         # Déjà à la troisième personne : inchangé
         ("Le chat de l'utilisateur s'appelle Félix",
          "Le chat de l'utilisateur s'appelle Félix"),
+        # Dans les dix autres langues : toujours cité, ses mots. Nu, le vrai modèle le
+        # reprenait à la première personne (« Моего сына зовут Артём ») ; « ma » le
+        # faisait convertir par les règles du français (« sa sorella… »)
+        ("Моего сына зовут Артём, ему семь лет",
+         "L'utilisateur t'a dit : « Моего сына зовут Артём, ему семь лет »"),
+        ("我儿子叫小龙，今年七岁", "L'utilisateur t'a dit : « 我儿子叫小龙，今年七岁 »"),
+        ("اسم ابني يوسف", "L'utilisateur t'a dit : « اسم ابني يوسف »"),
+        ("제 아들 이름은 민준이에요", "L'utilisateur t'a dit : « 제 아들 이름은 민준이에요 »"),
+        ("Mijn zoon heet Daan en is zeven jaar",
+         "L'utilisateur t'a dit : « Mijn zoon heet Daan en is zeven jaar »"),
+        ("Ma sorella si chiama Giulia", "L'utilisateur t'a dit : « Ma sorella si chiama Giulia »"),
+        ("El mes pasado me mudé a Valencia",
+         "L'utilisateur t'a dit : « El mes pasado me mudé a Valencia »"),
+        # Le français et l'anglais gardent leur conversion
+        ("j'adore la paella", "L'utilisateur adore la paella"),
     ],
 )
 def test_user_fact_for_prompt(value, shown):

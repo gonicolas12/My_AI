@@ -7,6 +7,7 @@ Chaque fait a une portée : la conversation qui le reçoit d'office dans son
 prompt. Les autres le trouvent à la demande (outil search_memory).
 """
 
+import functools
 import os
 import re
 import sqlite3
@@ -17,6 +18,7 @@ from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Tuple
 
 from core import memory_languages
+from core.language_detector import LanguageDetector
 from core.memory_languages import word_count
 from utils.logger import setup_logger
 from utils.text_fold import fold
@@ -208,6 +210,19 @@ def _french_in_third_person(text: str) -> Optional[str]:
     return _MOI_RE.sub("l'utilisateur", text)
 
 
+@functools.lru_cache(maxsize=1)
+def _detector() -> LanguageDetector:
+    """Le détecteur de langue de My_AI ; dans le doute, le français."""
+    return LanguageDetector(default_language="fr")
+
+
+def message_language(text: str) -> str:
+    """Langue du texte parmi les dix autres de My_AI (« Я врач. » → "ru") ; "" en
+    français, en anglais ou dans le doute."""
+    code = _detector().detect(text or "")
+    return code if code in memory_languages.LANGUAGES else ""
+
+
 def user_fact_for_prompt(text: str) -> str:
     """
     Un fait tel que le modèle doit le lire, à la troisième personne s'il est
@@ -217,7 +232,15 @@ def user_fact_for_prompt(text: str) -> str:
 
     Même cité, un fait laissé à la première personne était parfois recopié
     tel quel : « qui suis-je ? » → « Je m'appelle Nicolas ».
+
+    Dans les dix autres langues de My_AI, il est toujours cité. Nu, « Моего сына
+    зовут Артём » revenait tel quel en réponse à « Как зовут моего сына? », à la
+    première personne ; et un mot français qu'il contenait (« ma », « mes ») le
+    faisait convertir par les règles du français (« Ma sorella si chiama Giulia » →
+    « L'utilisateur : sa sorella si chiama Giulia »).
     """
+    if message_language(text):
+        return f"L'utilisateur t'a dit : « {text} »"
     if not _FIRST_PERSON_RE.search(text):
         return text
     english = bool(_ENGLISH_MARKER_RE.search(text)) and not _FRENCH_MARKER_RE.search(text)

@@ -18,7 +18,6 @@ faits du code, que la fenêtre Mémoire montre de même.
 
 from __future__ import annotations
 
-import functools
 import logging
 import re
 import unicodedata
@@ -41,10 +40,10 @@ from core.knowledge_base_manager import (
     extract_remember_request,
     fact_scope,
     is_assistant_fact,
+    message_language,
     project_name,
 )
-from core.language_detector import LanguageDetector
-from core.memory_languages import LANGUAGES, Part, message_parts, word_count
+from core.memory_languages import Part, message_parts, word_count
 from utils.text_fold import fold
 
 logger = logging.getLogger(__name__)
@@ -202,19 +201,6 @@ _CHAT_SPONTANEOUS_EXAMPLES = (
     ((("chat", "j'habite à Lyon"),), "quel temps fera-t-il à Nantes demain ?",
      {"remember": [], "forget": []}),
 )
-
-
-@functools.lru_cache(maxsize=1)
-def _detector() -> LanguageDetector:
-    """Le détecteur de langue de My_AI ; dans le doute, le français."""
-    return LanguageDetector(default_language="fr")
-
-
-def message_language(message: str) -> str:
-    """Langue du message parmi les dix autres de My_AI (« Я врач. » → "ru") ; "" en
-    français, en anglais ou dans le doute."""
-    code = _detector().detect(message or "")
-    return code if code in LANGUAGES else ""
 
 
 # Sans demande, dans les dix autres langues : ce qu'il a retenu, écrit en français, est
