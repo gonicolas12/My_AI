@@ -2725,9 +2725,16 @@ class RelayServer:
             )
             return
 
+        # --protocol auto : QUIC, puis HTTP/2 (TCP) si l'UDP sortant est bloqué.
+        # Sans protocole demandé, cloudflared imposait QUIC aux tunnels rapides
+        # jusqu'à sa version 2026.11.0, sans repli : sur un tel réseau, le
+        # tunnel ne s'établissait jamais. La 2026.11.1 lève cette contrainte ;
+        # la demander ici vaut aussi pour un binaire plus ancien (PATH ou
+        # tools/, jamais remplacé d'office).
         self._spawn_tunnel(
             provider="cloudflared",
-            cmd=[cf_path, "tunnel", "--url", f"http://{self._tunnel_target}"],
+            cmd=[cf_path, "tunnel", "--protocol", "auto",
+                 "--url", f"http://{self._tunnel_target}"],
             url_pattern=r"https://[a-z0-9-]+\.trycloudflare\.com",
         )
         logger.info("Tunnel cloudflared en cours de démarrage...")

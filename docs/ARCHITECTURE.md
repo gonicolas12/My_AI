@@ -792,6 +792,9 @@ Architecture:
 │   │   QR code ; si aucun ne répond en 30 s, ils y entrent tous
 │   ├─ cloudflared testé via les serveurs DNS faisant autorité de
 │   │   trycloudflare.com (pas de « nom inexistant » gardé en cache)
+│   ├─ cloudflared lancé en « --protocol auto » : QUIC, puis HTTP/2 si
+│   │   l'UDP sortant est bloqué (≈ 2 min ; sans lui, QUIC seul jusqu'à
+│   │   cloudflared 2026.11.0)
 │   ├─ Liste des tunnels jamais servie sans token
 │   └─ Téléchargement auto cloudflared si absent (GitHub releases)
 ├─ QR Code SVG via qrcode.image.svg, encode {urls, token, key, lang} :
