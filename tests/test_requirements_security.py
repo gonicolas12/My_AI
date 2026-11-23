@@ -38,6 +38,9 @@ SECURITY_FLOORS = [
     ("fastapi", "0.165.0", "0.163.1"),
     # GHSA-gcq2-p324-qj2v et quatre autres avis des 18 et 20/11/2026 (Python 3.11.5+)
     ("soupsieve", "4.1.3", "4.1.2"),
+    # Hygiène : 49 racines retirées par Mozilla depuis la 2024.2.2, dont 5 encore
+    # dans la 2026.10.23 (Buypass, Certigna Root CA, QuoVadis 1 G3 et 3 G3)
+    ("certifi", "2026.11.20", "2026.10.23"),
 ]
 
 
@@ -208,3 +211,11 @@ def test_too_old_installed_versions_are_reinstalled_at_launch(monkeypatch):
     installed.update({"pillow": "13.0.0", "aiohttp": "3.14.5", "websockets": "17.4"})
     missing = sync.unsatisfied_requirements(TEXT)
     assert not {"pillow>=13.0.0", "aiohttp>=3.14.4", "websockets>=17.4"} & set(missing)
+
+
+def test_an_old_certifi_is_reinstalled_at_launch(monkeypatch):
+    # certifi n'était pas borné : le PC à RTX 3060 gardait la 2024.2.2 le 23/11/2026
+    monkeypatch.setattr(sync, "_installed_versions", lambda: {"certifi": "2024.2.2"})
+    assert "certifi>=2026.11.20" in sync.unsatisfied_requirements(TEXT)
+    monkeypatch.setattr(sync, "_installed_versions", lambda: {"certifi": "2026.11.20"})
+    assert "certifi>=2026.11.20" not in sync.unsatisfied_requirements(TEXT)

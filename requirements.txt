@@ -35,6 +35,15 @@ rich>=13.0.0
 aiohttp>=3.14.4
 aiofiles>=23.0.0
 requests>=2.31.0
+# certifi, les autorités de certification de requests (pip a les siennes) :
+# borne d'hygiène. Il n'était pas borné, et une installation existante peut
+# garder une version très ancienne (2024.2.2 trouvée sur un PC de test).
+# Celle-ci fait encore confiance à 49 racines que Mozilla a retirées depuis,
+# dont emSign Root CA - C1 et emSign ECC Root CA - C3. La borne ne remplace pas
+# l'avertissement Python de la PR #68 (utils/python_version.py) : la racine
+# emSign Root CA - G1 reste dans certifi, et seul le module ssl d'un Python
+# corrigé refuse les clés eMudhra compromises.
+certifi>=2026.11.20
 tenacity>=8.2.0
 beautifulsoup4>=4.12.0
 # soupsieve, moteur des sélecteurs CSS de beautifulsoup4 (qui ne le borne pas).

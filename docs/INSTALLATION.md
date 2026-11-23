@@ -207,6 +207,7 @@ optimization:
 click>=8.0.0              # CLI interface
 aiohttp>=3.14.4           # Async HTTP (3.14.4 : 8 avis de sécurité corrigés)
 requests>=2.31.0          # HTTP requests
+certifi>=2026.11.20       # Autorités de certification de requests (hygiène : 49 racines retirées depuis la 2024.2.2)
 beautifulsoup4>=4.12.0    # Web scraping
 soupsieve>=4.1.3          # Sélecteurs CSS de beautifulsoup4 (4.1.3 : avis jusqu'au 20/11/2026 ; Python 3.11.5+)
 pyyaml>=6.0               # Configuration
