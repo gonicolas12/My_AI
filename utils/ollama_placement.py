@@ -131,6 +131,26 @@ def placement_label(state_file: Path = STATE_FILE) -> Optional[str]:
     return label
 
 
+def current_placement_label(state_file: Path = STATE_FILE) -> Optional[str]:
+    """
+    Placement du dernier calibrage, s'il vaut encore pour l'Ollama qui tourne
+
+    Returns:
+        Le placement en clair (cf. placement_label) ; None si Ollama, son
+        modèle, la carte ou le pilote ont changé depuis (calibrage à refaire)
+        ou si Ollama ne répond pas
+    """
+    saved = _read_state(state_file).get("signature")
+    base_url = _local_ollama_url()
+    if not isinstance(saved, dict) or base_url is None:
+        return None
+    try:
+        current = _signature(base_url, str(saved.get("model") or CUSTOM_MODEL))
+    except PlacementError:
+        return None
+    return placement_label(state_file) if current == saved else None
+
+
 def ensure_best_placement(
     restart: Callable[[Dict[str, str]], bool],
     state_file: Path = STATE_FILE,

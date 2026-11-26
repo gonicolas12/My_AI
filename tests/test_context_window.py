@@ -105,6 +105,21 @@ def test_every_step_asks_ollama_for_the_same_window(windows):
     assert windows == [WINDOW] * 6
 
 
+def test_failed_warmup_is_reported(monkeypatch, capsys):
+    """Cas observé : Ollama 0.40.18 installé à moitié répondait 500 à chaque
+    chargement, et la console annonçait quand même le modèle chargé en VRAM."""
+    error = ("error starting llama-server: llama-server binary not found "
+             "(checked: C:\\Ollama\\lib\\ollama\\llama-server.exe)")
+    response = SimpleNamespace(status_code=500, json=lambda: {"error": error})
+    monkeypatch.setattr(local_llm.requests, "post", lambda _url, **_kwargs: response)
+
+    _llm()._warmup_model()
+    out = capsys.readouterr().out
+    assert "Warmup terminé" not in out
+    assert f"Warmup échoué (non bloquant) : {error}" in out
+    assert "réinstallez Ollama" in out
+
+
 def test_vscode_mode_uses_the_window_of_the_app():
     """Le mode agentique de l'extension demandait 32 768 quelle que soit la
     fenêtre réglée dans ⚙️ Réglages."""

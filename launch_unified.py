@@ -53,6 +53,7 @@ import requests  # pylint: disable=wrong-import-position
 from core.i18n import tr  # pylint: disable=wrong-import-position
 from utils import no_console  # pylint: disable=wrong-import-position,ungrouped-imports
 from utils.ollama_placement import (  # pylint: disable=wrong-import-position,ungrouped-imports
+    current_placement_label,
     ensure_best_placement,
     placement_label,
     saved_env,
@@ -224,7 +225,9 @@ def _ensure_ollama_parallel():
         else:
             print("⚠️ Ollama lancé mais pas encore prêt — il démarrera sous peu")
         return
-    label = placement_label()
+    # Placement seulement s'il vaut encore : après une mise à jour d'Ollama ou
+    # un changement de carte, le calibrage qui suit le mesure à nouveau
+    label = current_placement_label()
     details = f", {label}" if label else ""
     parallel = ("1 requête à la fois" if num_parallel == "1"
                 else f"{num_parallel} requêtes simultanées")

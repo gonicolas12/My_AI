@@ -28,6 +28,7 @@ class FakeLauncher:
     def __init__(self, ollama_running=True):
         self.calls = []
         self.ollama_running = ollama_running
+        self.placement = "gpu"  # None : calibrage en échec
 
     def prefetch_in_background(self):
         self.calls.append("prefetch")
@@ -50,7 +51,7 @@ class FakeLauncher:
         self.calls.append("placement")
         on_progress("🔍 Recherche du meilleur emplacement pour le modèle 'my_ai'…")
         on_progress("• Processeur : lecture 70 tok/s, écriture 11,4 tok/s")
-        return "gpu"
+        return self.placement
 
     def _restart_ollama(self, _env):
         return True
@@ -205,6 +206,17 @@ def test_launch_steps_follow_the_launcher_order(started):
     details = [e["payload"]["detail"] for e in run.events
                if e["type"] == "engine.status" and e["payload"]["detail"]]
     assert details[0].startswith("🔍 Recherche du meilleur emplacement")
+
+
+def test_failed_calibration_shows_no_placement(started):
+    """Calibrage en échec (Ollama installé à moitié) : l'ancien placement enregistré
+    ne dit plus où tourne le modèle."""
+    fake = FakeLauncher()
+    fake.placement = None
+    run = started(fake)
+
+    assert run.status["state"] == "ready"
+    assert run.status["placement"] is None
 
 
 def test_a_model_update_is_named_on_the_loading_screen(started):

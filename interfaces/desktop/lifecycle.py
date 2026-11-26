@@ -246,11 +246,12 @@ class DesktopApp:
             launcher.sync_custom_model(on_progress=self._model_update)
 
             self._step("placement")
-            launcher.ensure_best_placement(
+            placement = launcher.ensure_best_placement(
                 launcher._restart_ollama,  # pylint: disable=protected-access
                 on_progress=lambda line: self._set_status(detail=line),
             )
-            self._set_status(placement=launcher.placement_label())
+            # Calibrage en échec : l'ancien placement ne dit plus où tourne le modèle
+            self._set_status(placement=launcher.placement_label() if placement else None)
 
             self._step("engine")
             self._start_engine()
