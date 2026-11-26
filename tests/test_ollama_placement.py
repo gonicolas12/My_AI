@@ -187,6 +187,21 @@ def test_graphics_card_holding_the_whole_model_is_left_to_ollama(ollama, state):
     assert placement.placement_label(state) == "modèle sur le GPU"
 
 
+def test_ready_line_shows_placement_only_while_it_holds(ollama, state):
+    """« Ollama prêt » du lanceur : l'ancien placement ne vaut plus après une mise
+    à jour d'Ollama (cas observé : 0.40.18 installée à moitié, modèle sur le
+    processeur, la ligne annonçait encore le GPU)."""
+    ollama.default_share = 100.0
+    place(ollama, state)
+    assert placement.current_placement_label(state) == "modèle sur le GPU"
+
+    ollama.version = "0.35.2"  # calibrage à refaire
+    assert placement.current_placement_label(state) is None
+    ollama.up = False
+    assert placement.current_placement_label(state) is None
+    assert placement.current_placement_label(state.with_name("absent.json")) is None
+
+
 def test_compact_context_fits_the_model_on_a_small_card(ollama, state, capsys):
     """RTX 3060 Laptop : 77 % du modèle sur la carte en 16 bits, tout en 8 bits."""
     ollama.default_share, ollama.compact_gain = 77.0, 23.0

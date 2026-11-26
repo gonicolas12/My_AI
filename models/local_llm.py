@@ -162,8 +162,25 @@ class LocalLLM:
                 # recharge le modèle et le préchauffage ne sert à rien
                 "options": {"num_predict": 1, "temperature": 0.0, "num_ctx": self.gen_num_ctx},
             }
-            requests.post(self.ollama_url, json=data, timeout=60)
-            print(f"🔥 [LocalLLM] Warmup terminé — modèle '{self.model}' chargé en VRAM")
+            response = requests.post(self.ollama_url, json=data, timeout=60)
+            if response.status_code != 200:
+                # Ollama répond mais ne charge pas le modèle (installation
+                # incomplète, mémoire insuffisante…) : le dire, sans bloquer
+                try:
+                    error = response.json().get("error")
+                except (ValueError, AttributeError):
+                    error = None
+                print(
+                    "⚠️ [LocalLLM] Warmup échoué (non bloquant) : "
+                    f"{error or f'erreur HTTP {response.status_code}'}"
+                )
+                if error and "llama-server binary not found" in error:
+                    print(
+                        "   Installation d'Ollama incomplète (mise à jour interrompue ?) : "
+                        "fermez My_AI et Ollama, puis réinstallez Ollama depuis ollama.com"
+                    )
+                return
+            print(f"🔥 [LocalLLM] Warmup terminé — modèle '{self.model}' chargé")
         except Exception as exc:
             print(f"⚠️ [LocalLLM] Warmup échoué (non bloquant) : {exc}")
 

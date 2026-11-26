@@ -141,7 +141,7 @@ def _ensure(launcher, ollama, monkeypatch):
     """_ensure_ollama_parallel, sans lire le dernier calibrage ni variable de l'utilisateur."""
     del ollama  # branché sur le lanceur
     monkeypatch.setattr(launcher, "saved_env", dict)
-    monkeypatch.setattr(launcher, "placement_label", lambda: None)
+    monkeypatch.setattr(launcher, "current_placement_label", lambda: None)
     monkeypatch.delenv("OLLAMA_NUM_PARALLEL", raising=False)  # rétablie après le test
     return launcher._ensure_ollama_parallel
 
